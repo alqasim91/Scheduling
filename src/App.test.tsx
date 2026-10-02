@@ -30,7 +30,7 @@ describe('App', () => {
     await user.clear(input)
     await user.type(input, 'Cairo Day')
     expect(input).toHaveValue('Cairo Day')
-    expect(screen.getByTestId('summary-title')).toHaveTextContent('Cairo Day')
+    expect(screen.getByTitle('Preview').getAttribute('srcdoc')).toContain('Cairo Day')
   })
 
   it('autosaves the edited title to localStorage', async () => {

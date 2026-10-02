@@ -17,6 +17,7 @@ React, Vite, TypeScript (strict), zod for validation, Vitest with jsdom and Test
 | `npm run lint`      | ESLint with `--max-warnings=0`                |
 | `npm test`          | Run the Vitest suite once                     |
 | `npm run typecheck` | Type-check without emitting                   |
+| `npm run screenshot`| Render the Cairo sample and screenshot it next to `reference/` into `test-results/` (needs Chromium; uses `PLAYWRIGHT_BROWSERS_PATH`) |
 
 ## Data model
 
@@ -31,6 +32,13 @@ The whole document is a `Schedule`, defined as zod schemas in [`src/model/schema
 
 Cross-field rules (ids unique per collection, items point at existing rows and columns, start before end, `rowSpan` fits) are enforced in the schema. `parseSchedule` in `src/model/validate.ts` migrates then validates and returns readable `path: message` errors instead of throwing.
 
+## Renderer and editor
+
+- `src/render/` is a pure function from `Schedule` to an HTML string (`renderAgendaBody`, `renderDocument`, `agendaCss`). It escapes all user text, sanitises fonts, only emits `http(s)` links and `data:image/` images, and ships no scripts. The preview iframe and the future HTML export use the same code.
+- `src/editor/ops.ts` holds the pure, immutable editing operations (columns, rows, items). An op returns the same object when it is refused, so the UI disables buttons with `op(schedule, ...) === schedule`.
+- `src/editor/*.tsx` are the panels (event, columns, grid, item form) and the live preview.
+- `src/samples/cairo.ts` is the Developers Day Cairo seed behind **Load sample**.
+
 ## File format and migrations
 
 Saved files are pretty-printed JSON with a top-level `version`. On load, `migrate` (`src/model/migrate.ts`) upgrades older files step by step to `CURRENT_VERSION`, and rejects missing or newer versions with a clear error. Adding version 2 means bumping `CURRENT_VERSION`, adding one upgrader function for `1`, and updating the schema.
@@ -40,7 +48,7 @@ Autosave uses the `localStorage` key `schedule-builder:v1` and is validated the 
 ## Roadmap
 
 - [x] **M1** Foundation: scaffold, schema, validation, autosave, JSON open/save
-- [ ] **M2** Track-grid editor and renderer
+- [x] **M2** Track-grid editor and renderer
 - [ ] **M3** Branding and motion
 - [ ] **M4** Export PDF/HTML and re-import
 - [ ] **M5** Table mode

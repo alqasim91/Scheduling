@@ -1,9 +1,11 @@
 import { useRef, useState, type ChangeEvent } from 'react'
+import { Editor } from './editor/Editor.tsx'
 import { createEmptySchedule } from './model/defaults.ts'
 import type { Schedule } from './model/schema.ts'
 import { downloadText, readFileAsText, scheduleFilename } from './persistence/files.ts'
 import { parseScheduleJson, serializeSchedule } from './persistence/json.ts'
 import { STORAGE_KEY, loadAutosaved, useAutosave } from './persistence/useAutosave.ts'
+import { cairoSample } from './samples/cairo.ts'
 
 const MAX_SHOWN_ERRORS = 20
 
@@ -42,8 +44,9 @@ export default function App() {
     downloadText(scheduleFilename(schedule.event.title), serializeSchedule(schedule), 'application/json')
   }
 
-  function handleTitle(title: string) {
-    setSchedule((current) => ({ ...current, event: { ...current.event, title } }))
+  function handleLoadSample() {
+    setSchedule(structuredClone(cairoSample))
+    setErrors([])
   }
 
   const hiddenErrors = errors.length - MAX_SHOWN_ERRORS
@@ -60,6 +63,9 @@ export default function App() {
         </button>
         <button type="button" onClick={handleSave}>
           Save JSON
+        </button>
+        <button type="button" onClick={handleLoadSample}>
+          Load sample
         </button>
         <input
           ref={fileInput}
@@ -83,34 +89,7 @@ export default function App() {
         </div>
       )}
 
-      <main className="body">
-        <label className="field">
-          <span>Event title</span>
-          <input type="text" value={schedule.event.title} onChange={(e) => handleTitle(e.target.value)} />
-        </label>
-
-        <dl className="summary" aria-label="Schedule summary">
-          <div>
-            <dt>Mode</dt>
-            <dd data-testid="summary-mode">{schedule.mode}</dd>
-          </div>
-          <div>
-            <dt>Columns</dt>
-            <dd data-testid="summary-columns">{schedule.columns.length}</dd>
-          </div>
-          <div>
-            <dt>Rows</dt>
-            <dd data-testid="summary-rows">{schedule.rows.length}</dd>
-          </div>
-          <div>
-            <dt>Items</dt>
-            <dd data-testid="summary-items">{schedule.items.length}</dd>
-          </div>
-        </dl>
-        <p className="summary__title" data-testid="summary-title">
-          {schedule.event.title || 'Untitled'}
-        </p>
-      </main>
+      <Editor schedule={schedule} setSchedule={setSchedule} />
     </div>
   )
 }
