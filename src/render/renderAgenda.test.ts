@@ -49,6 +49,9 @@ describe('escaping and sanitising', () => {
     expect(ok).toContain('class="btn"')
     expect(ok).toContain('href="https://example.com/a?b=1&amp;c=2"')
     expect(renderAgendaBody(withEvent({ url: undefined }))).not.toContain('class="btn"')
+    // The print-only address line follows the same rule.
+    expect(renderAgendaBody(withEvent({ url: 'javascript:alert(1)' }))).not.toContain('print-link')
+    expect(ok).toContain('<p class="print-link">Official event page: https://example.com/a?b=1&amp;c=2</p>')
   })
 
   it('strips CSS-breaking characters from fonts', () => {

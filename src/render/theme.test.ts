@@ -199,12 +199,45 @@ describe('print css', () => {
     expect(printBlock).toContain('--lift:0%')
   })
 
-  it('keeps backgrounds, avoids breaking cards, hides the badge, shows the link address', () => {
+  it('keeps backgrounds exact and uses a plain white page', () => {
     expect(printBlock).toContain('print-color-adjust:exact')
     expect(printBlock).toContain('-webkit-print-color-adjust:exact')
-    expect(printBlock).toMatch(/\.ev,\.person[^{]*\{break-inside:avoid\}/)
+    expect(printBlock).toContain('--bg:#fff;}')
+    expect(printBlock).toContain('.wrap{max-width:none')
+  })
+
+  it('uses a compact type scale and spacing', () => {
+    expect(printBlock).toContain('h1{font-size:26pt}')
+    expect(printBlock).toContain('body{padding:0;font-size:9.5pt')
+    expect(printBlock).toContain('.ev{padding:4px 10px')
+    expect(printBlock).toContain('.ev h3{font-size:10.5pt}')
+    expect(printBlock).toContain('.agenda{gap:4px 10px}')
+    expect(printBlock).toContain('grid-template-columns:44px repeat(2,1fr)')
+  })
+
+  it('gives right-to-left titles room, and times the body face', () => {
+    expect(printBlock).toContain(':root[dir="rtl"] h1{line-height:1.4}')
+    expect(css).toContain(':root[dir="rtl"] .t,:root[dir="rtl"] .ev .when,:root[dir="rtl"] .rng{font-family:var(--body)}')
+  })
+
+  it('lays speakers out in 4 columns with small avatars', () => {
+    expect(printBlock).toContain('.people{grid-template-columns:repeat(4,1fr)')
+    expect(printBlock).toContain('.av{width:28px;height:28px')
+  })
+
+  it('keeps cards whole but lets rows break; headings stay with what follows', () => {
+    expect(printBlock).toMatch(/\.ev,\.person,\.t,\.small\{break-inside:avoid\}/)
+    expect(printBlock).toContain('.lane-head{break-after:avoid}')
+    expect(printBlock).toContain('h2{font-size:12pt;break-after:avoid}')
+    expect(printBlock).not.toMatch(/\.agenda\{[^}]*break-inside/)
     expect(printBlock).toContain('.ev .badge{display:none!important}')
-    expect(printBlock).toContain('.btn::after{content:"(" attr(href) ")";margin-inline-start:.4em')
+  })
+
+  it('swaps the blue button for a plain "label: url" line', () => {
+    expect(css).toContain('.print-link{display:none;margin:0}') // not on screen
+    expect(printBlock).toContain('.btn{display:none}')
+    expect(printBlock).toContain('.print-link{display:block;')
+    expect(css).not.toContain('.btn::after')
   })
 
   it('is present without motion too, and adds no animation css', () => {

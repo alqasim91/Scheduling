@@ -314,6 +314,8 @@ export function renderAgendaBody(schedule: Schedule): string {
   }
   if (url) {
     parts.push(`<a class="btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(labels.eventLink)}</a>`)
+    // Printed pages show the address as plain text instead of the button (see the print CSS).
+    parts.push(`<p class="print-link">${escapeHtml(labels.eventLink)}: ${escapeHtml(url)}</p>`)
   }
   return `<main class="wrap">\n${parts.join('\n')}\n</main>`
 }

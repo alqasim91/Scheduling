@@ -120,6 +120,8 @@ h2{font-family:var(--display);font-weight:500;font-size:22px;margin:0}
 .btn:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 :root[dir="rtl"] .eyebrow,:root[dir="rtl"] .chip,:root[dir="rtl"] .lane-head div,:root[dir="rtl"] .badge{letter-spacing:0;text-transform:none}
 :root[dir="rtl"] h1{letter-spacing:0}
+/* Mono faces rarely have Arabic digits; use the body face for times when reading right to left. */
+:root[dir="rtl"] .t,:root[dir="rtl"] .ev .when,:root[dir="rtl"] .rng{font-family:var(--body)}
 
 @media (max-width:520px){
   .agenda,.lane-head{grid-template-columns:${mobileTemplate}}
@@ -130,15 +132,45 @@ h2{font-family:var(--display);font-weight:500;font-size:22px;margin:0}
 }${motionCss(schedule)}
 
 @page{size:A4;margin:12mm}
+.print-link{display:none;margin:0}
 @media print{
-  :root,:root[data-theme="dark"],:root:not([data-theme="light"]){color-scheme:light;${light}}
+  :root,:root[data-theme="dark"],:root:not([data-theme="light"]){color-scheme:light;${light}--bg:#fff;}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  body{padding:0}
-  .wrap{max-width:none}
-  .ev,.person,.t,.lane-head,.small{break-inside:avoid}
+  body{padding:0;font-size:9.5pt;line-height:1.3}
+  .wrap{max-width:none;gap:6px}
+  .head{gap:2px}
+  .sec{gap:6px}
+  h1{font-size:26pt}
+  :root[dir="rtl"] h1{line-height:1.4}
+  :root[dir="rtl"] .head{gap:6px}
+  h2{font-size:12pt;break-after:avoid}
+  .eyebrow{font-size:8.5pt}
+  .meta{font-size:9pt;gap:2px 14px}
+  .parallel-note{padding:6px 10px;font-size:9pt;border-radius:8px;gap:8px}
+  .legend{font-size:8.5pt;gap:4px 10px}
+  .chip{font-size:7.5pt;padding:1px 7px}
+  .agenda,.lane-head{grid-template-columns:44px repeat(${lanes},1fr)}
+  .agenda{gap:4px 10px}
+  .lane-head{break-after:avoid}
+  .lane-head div{font-size:8pt;padding:2px 0}
+  .t{font-size:8pt;padding-top:6px}
+  .t b{font-size:9pt}
+  .ev{padding:4px 10px;gap:2px;border-radius:8px}
+  .ev h3{font-size:10.5pt}
+  .ev .spk{font-size:9pt}
+  .ev .when{font-size:8pt}
+  .ev.ghost{font-size:9pt}
+  .small{font-size:8pt}
+  .people{grid-template-columns:repeat(4,1fr);gap:6px}
+  .person{padding:5px 8px;gap:8px;border-radius:8px}
+  .av{width:28px;height:28px;font-size:9pt}
+  .person b{font-size:9pt}
+  .person span{font-size:7.5pt}
+  .ev,.person,.t,.small{break-inside:avoid}
   .ev .badge{display:none!important}
   .ev.now{box-shadow:none}
-  .btn::after{content:"(" attr(href) ")";margin-inline-start:.4em;font-weight:400;overflow-wrap:anywhere}
+  .btn{display:none}
+  .print-link{display:block;font-size:8.5pt;color:var(--muted);overflow-wrap:anywhere}
 }
 `.trim()
 }

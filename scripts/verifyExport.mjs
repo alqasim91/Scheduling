@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
 import { embedFonts } from '../src/export/embedFonts.ts'
@@ -58,6 +59,14 @@ async function fontCssFor(schedule) {
   return { css, kind: `synthetic (real embed failed: ${real.error})`, bytes: Buffer.byteLength(css), reason: real.error }
 }
 
+/** Page count of a PDF: pdfinfo when installed, otherwise count the page objects. */
+function pdfPages(path) {
+  const info = spawnSync('pdfinfo', [path], { encoding: 'utf8' })
+  const match = /^Pages:\s+(\d+)/m.exec(info.stdout ?? '')
+  if (match) return Number(match[1])
+  return (readFileSync(path).toString('latin1').match(/\/Type\s*\/Page(?![a-z])/g) ?? []).length
+}
+
 const browser = await launch()
 const report = []
 let failures = 0
@@ -83,9 +92,10 @@ async function openOffline(file, { clock } = {}) {
 }
 
 try {
-  for (const { name, schedule, families } of [
-    { name: 'cairo', schedule: cairoSample, families: ['Roboto'] },
-    { name: 'rtl', schedule: rtlDemo, families: ['Cairo', 'Tajawal'] },
+  // Print layout budget: the Cairo agenda fits one A4 page, the RTL demo too. A regression fails the run.
+  for (const { name, schedule, families, maxPages } of [
+    { name: 'cairo', schedule: cairoSample, families: ['Roboto'], maxPages: 1 },
+    { name: 'rtl', schedule: rtlDemo, families: ['Cairo', 'Tajawal'], maxPages: 1 },
   ]) {
     const fonts = await fontCssFor(schedule)
     const html = buildExportHtml(schedule, { fontCss: fonts.css })
@@ -114,6 +124,11 @@ try {
         assert.ok(await page.evaluate((f) => document.fonts.check(`16px "${f}"`), family), `${name}: fonts.check ${family}`)
       }
     }
+    const pdf = join(outDir, `${name}-export.pdf`)
+    await page.pdf({ path: pdf, format: 'A4', printBackground: true })
+    const pages = pdfPages(pdf)
+    assert.ok(pages <= maxPages, `${name}: PDF has ${pages} page(s), expected at most ${maxPages}`)
+    report.push(`${name}: ${kb(size)} html, PDF ${pages} A4 page(s) (limit ${maxPages}), fonts: ${fonts.kind}`)
     report.push(`${name}: ${kb(size)} html, fonts: ${fonts.kind}${fonts.css ? `, ${kb(fonts.bytes)} of @font-face css` : ''}; no errors, no CSP violations, 0 network requests`)
     await context.close()
   }
