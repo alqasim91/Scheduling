@@ -178,7 +178,7 @@ test.describe('the editor never covers its own card', () => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
     const page = await context.newPage()
     await openApp(page, seedSchedule({ items }))
-    await page.getByRole('button', { name: '+ Add session' }).click()
+    await page.getByRole('button', { name: 'Add session' }).click()
     const dialog = page.getByRole('dialog', { name: 'Edit session' })
     await expect(dialog).toHaveClass(/is-sheet/)
     const sheet = (await dialog.boundingBox())!
@@ -392,7 +392,8 @@ test.describe('shell', () => {
     await page.keyboard.press('Escape')
     await expect(sidebar).toBeHidden()
     // The board scrolls sideways when there are more tracks than fit.
-    await page.getByRole('button', { name: '+ Track' }).click()
+    await page.getByRole('button', { name: 'More board options' }).click()
+    await page.getByRole('menuitem', { name: '+ Track' }).click()
     await page.keyboard.type('Fourth{Enter}')
     const sideways = await page.locator('.board__viewport').evaluate((el) => el.scrollWidth > el.clientWidth)
     expect(sideways).toBe(true)
@@ -517,5 +518,127 @@ test.describe('speakers section', () => {
     await expect(page.getByLabel('Speaker 2 name')).toHaveCount(0)
     await page.getByRole('status', { name: 'Notification' }).getByRole('button', { name: 'Undo' }).click()
     await expect(page.getByLabel('Speaker 2 name')).toHaveValue('Grace')
+  })
+})
+
+test.describe('phone chrome', () => {
+  test('one bar row under the top bar: modes, an icon + and a ... menu; the board starts near the top', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+    const page = await context.newPage()
+    await openApp(page, seedSchedule({ items }))
+    const mode = page.getByRole('group', { name: 'Mode' })
+    const add = page.getByRole('button', { name: 'Add session' })
+    const more = page.getByRole('button', { name: 'More board options' })
+    await expect(add).toBeVisible()
+    await expect(more).toBeVisible()
+    // Everything that used to be a second row shares one row, mode switch first.
+    const [m, a, o] = [(await mode.boundingBox())!, (await add.boundingBox())!, (await more.boundingBox())!]
+    expect(Math.abs(m.y + m.height / 2 - (a.y + a.height / 2))).toBeLessThanOrEqual(3)
+    expect(Math.abs(a.y + a.height / 2 - (o.y + o.height / 2))).toBeLessThanOrEqual(3)
+    expect(m.x).toBeLessThan(a.x)
+    expect(a.x).toBeLessThan(o.x)
+    // The label of the icon button is not "+": it is announced as Add session.
+    await expect(add).toHaveAccessibleName('Add session')
+    // The board itself (its scrolling area) starts within about 110px of the top of the window.
+    const view = (await page.locator('.board__viewport').boundingBox())!
+    expect(view.y).toBeLessThanOrEqual(110)
+    // + Track and the zoom choices live in the overflow menu.
+    await more.click()
+    await expect(page.getByRole('menuitem')).toHaveText(['+ Track', 'Compact zoom', '✓ Comfortable zoom'])
+    await page.keyboard.press('Escape')
+    // No horizontal page scroll.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+    await context.close()
+  })
+})
+
+test.describe('table columns strip', () => {
+  const rows = [
+    { id: 'a', tracks: [0], start: '09:00', end: '09:30', title: 'One' },
+    { id: 'b', tracks: [0], start: '09:30', end: '10:00', title: 'Two' },
+  ]
+
+  test('chips sit above a full-width table; click edits, drag reorders, + Column adds', async ({ page }) => {
+    await openApp(page, seedSchedule({ items: rows }))
+    await page.getByRole('button', { name: 'Table', exact: true }).click()
+    await expect(page.locator('tr[data-row-id]')).toHaveCount(2)
+    await expect(page.getByRole('heading', { name: 'Columns' })).toHaveCount(0)
+    const chips = page.locator('.chips__list .chip:not(.chip--add)')
+    await expect(chips).toHaveCount(3)
+    // One compact strip, not a tall panel, and the table takes the width the centre column has.
+    const strip = (await page.locator('.main__bar').boundingBox())!
+    expect(strip.height).toBeLessThan(70)
+    const main = (await page.locator('.main').boundingBox())!
+    const wrap = (await page.locator('.sheet-wrap').boundingBox())!
+    expect(wrap.width).toBeGreaterThan(main.width - 48)
+    expect(wrap.y).toBeLessThan(strip.y + strip.height + 24)
+
+    // Click: rename in a small popover.
+    await chips.nth(1).click()
+    const dialog = page.getByRole('dialog', { name: 'Edit column 2' })
+    await expect(dialog).toBeVisible()
+    await dialog.getByLabel('Column 2 name').fill('Presenter')
+    await expect(chips.nth(1)).toContainText('Presenter')
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+
+    // Drag the third chip before the first.
+    const from = (await chips.nth(2).boundingBox())!
+    const to = (await chips.nth(0).boundingBox())!
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(to.x + 6, to.y + to.height / 2, { steps: 12 })
+    await expect(page.locator('.chips__list li.is-drop-before')).toHaveCount(1)
+    await page.mouse.up()
+    await expect(chips.first()).toContainText('Tag')
+    await expect(page.getByRole('dialog', { name: /Edit column/ })).toHaveCount(0) // a drag is not a click
+    await page.keyboard.press('Control+z')
+    await expect(chips.first()).toContainText('Session')
+
+    // + Column adds one and opens its editor, name selected.
+    await page.getByRole('button', { name: '+ Column' }).click()
+    await expect(chips).toHaveCount(4)
+    await expect(page.getByLabel('Column 4 name')).toBeFocused()
+  })
+})
+
+test.describe('tiny cards', () => {
+  test('at compact zoom a card under 14px has one resize handle at the bottom, and the body still drags', async ({ page }) => {
+    await openApp(page, seedSchedule({ items: [{ id: 'blink', tracks: [0], start: '09:00', end: '09:10', title: 'Blink' }, { id: 'ok', tracks: [1], start: '09:00', end: '10:00', title: 'Normal' }] }))
+    const board = new Board(page)
+    await page.getByRole('button', { name: 'Compact' }).click()
+    const tiny = board.card('Blink')
+    await expect(tiny).toHaveClass(/board-card--tiny/)
+    const display = (loc: ReturnType<Page['locator']>) => loc.evaluate((el) => getComputedStyle(el).display)
+    for (const h of ['top', 'start', 'end']) expect(await display(tiny.locator(`[data-handle="${h}"]`))).toBe('none')
+    expect(await display(tiny.locator('[data-handle="bottom"]'))).not.toBe('none')
+    expect(await display(board.card('Normal').locator('[data-handle="top"]'))).not.toBe('none')
+    // The body is still the way to move it.
+    const box = (await tiny.boundingBox())!
+    expect(box.height).toBeLessThan(14)
+    const to = await board.at('10:30', 0)
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - 2)
+    await page.mouse.down()
+    await page.mouse.move(to.x, to.y, { steps: 10 })
+    await page.mouse.up()
+    await expect(tiny).toHaveAccessibleName(/^Blink, 10:\d\d to 10:\d\d, Alpha$/)
+  })
+})
+
+test.describe('autosave status', () => {
+  test('typing goes straight to Saved: Saving... is never shown for a quick save', async ({ page }) => {
+    await openApp(page, seedSchedule({ items }))
+    const status = page.getByRole('status', { name: 'Autosave status' })
+    await expect(status).toHaveText('Saved')
+    await status.evaluate((el) => {
+      const w = window as unknown as { __seen: string[] }
+      w.__seen = []
+      new MutationObserver(() => w.__seen.push(el.textContent ?? '')).observe(el, { childList: true, subtree: true, characterData: true })
+    })
+    await page.getByLabel('Event title').pressSequentially('Typing a longer title here', { delay: 40 })
+    await page.waitForTimeout(900)
+    await expect(status).toHaveText('Saved')
+    const seen = await page.evaluate(() => (window as unknown as { __seen: string[] }).__seen)
+    expect(seen.filter((t) => t.includes('Saving'))).toEqual([])
   })
 })

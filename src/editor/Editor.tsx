@@ -5,7 +5,7 @@ import { Accordion } from '../ui/Accordion.tsx'
 import { Segmented } from '../ui/Segmented.tsx'
 import { Board } from './board/Board.tsx'
 import { BrandingPanel } from './BrandingPanel.tsx'
-import { ColumnsPanel } from './ColumnsPanel.tsx'
+import { ColumnStrip } from './ColumnsPanel.tsx'
 import { EventPanel } from './EventPanel.tsx'
 import { LabelsPanel } from './LabelsPanel.tsx'
 import { setMode } from './ops.ts'
@@ -35,6 +35,17 @@ export function Editor({ schedule, apply, undo, rollbackTo, view, drawerOpen, on
   const [unnamed, setUnnamed] = useState<string | null>(null)
   const isAuto = schedule.branding.theme === 'auto'
   const rtl = resolveDirection(schedule.event) === 'rtl'
+  const modeSwitch = (
+    <Segmented
+      label="Mode"
+      value={schedule.mode}
+      options={[
+        ['track-grid', 'Track grid'],
+        ['table', 'Table'],
+      ]}
+      onChange={(mode) => apply((s) => setMode(s, mode))}
+    />
+  )
 
   return (
     <div className="workspace" data-view={view}>
@@ -50,26 +61,18 @@ export function Editor({ schedule, apply, undo, rollbackTo, view, drawerOpen, on
           </aside>
           <div className="drawer-backdrop" data-open={drawerOpen} onClick={onCloseDrawer} aria-hidden="true" />
           <main className="main">
-            <div className="main__bar">
-              <Segmented
-                label="Mode"
-                value={schedule.mode}
-                options={[
-                  ['track-grid', 'Track grid'],
-                  ['table', 'Table'],
-                ]}
-                onChange={(mode) => apply((s) => setMode(s, mode))}
-              />
-            </div>
             {schedule.mode === 'table' ? (
-              <div className="main__scroll">
-                <div className="table-editor">
-                  <ColumnsPanel schedule={schedule} apply={apply} undo={undo} />
+              <>
+                <div className="main__bar">
+                  {modeSwitch}
+                  <ColumnStrip schedule={schedule} apply={apply} undo={undo} />
+                </div>
+                <div className="main__scroll">
                   <TablePanel schedule={schedule} apply={apply} undo={undo} />
                 </div>
-              </div>
+              </>
             ) : (
-              <Board schedule={schedule} apply={apply} undo={undo} rollbackTo={rollbackTo} rtl={rtl} onUnnamedChange={setUnnamed} />
+              <Board schedule={schedule} apply={apply} undo={undo} rollbackTo={rollbackTo} rtl={rtl} onUnnamedChange={setUnnamed} modeSwitch={modeSwitch} />
             )}
           </main>
         </>

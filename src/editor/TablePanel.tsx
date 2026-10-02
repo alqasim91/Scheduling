@@ -112,8 +112,10 @@ export function TablePanel({ schedule, apply, undo }: Props) {
   }
 
   return (
-    <section className="panel" aria-labelledby="panel-table">
-      <h2 id="panel-table">Table</h2>
+    <section className="table-section" aria-labelledby="panel-table">
+      <h2 id="panel-table" className="sr-only">
+        Table
+      </h2>
       {columns.length === 0 && <p className="field__hint">Add a column above to start filling the table.</p>}
       <datalist id={SPEAKER_LIST_ID}>
         {schedule.speakers.map((s) => (

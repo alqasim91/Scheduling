@@ -27,10 +27,15 @@
   padding: var(--space-2) var(--space-3);
 }
 
-.board__bar h2 {
+.board__spacer {
   flex: 1;
-  margin: 0;
-  font-size: var(--fs-lg);
+}
+
+.board__icon {
+  width: var(--control-md);
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
 }
 
 .board__viewport {
@@ -325,6 +330,20 @@
   transition: none;
 }
 
+.board-card.is-invalid,
+.board-card.is-invalid:hover {
+  border-color: var(--board-danger);
+  --stripe: var(--board-danger);
+  background: var(--c-danger-soft);
+  outline: 2px solid var(--board-danger);
+  outline-offset: 0;
+}
+
+.board-card.is-invalid .board-card__time {
+  color: var(--board-danger);
+  font-weight: 500;
+}
+
 .board-card.is-resizing {
   z-index: 9;
   transition: none;
@@ -413,6 +432,17 @@
 
 .board-card__handle--bottom {
   bottom: 0;
+}
+
+/* A card this short has no room for four handles: only the bottom edge resizes. */
+.board-card--tiny .board-card__handle--top,
+.board-card--tiny .board-card__handle--start,
+.board-card--tiny .board-card__handle--end {
+  display: none;
+}
+
+.board-card--tiny .board-card__handle--bottom {
+  height: min(6px, 40%);
 }
 
 .board-card__handle--start,

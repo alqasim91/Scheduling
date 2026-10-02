@@ -30,9 +30,13 @@ async function openEditor(user: User, name: RegExp) {
 }
 
 const preview = () => screen.getByTitle('Preview').getAttribute('srcdoc') ?? ''
-/** How many of something are on screen: board cards, board headers or table-column rows, table rows. */
+/** How many of something are on screen: board cards, board headers or table-column chips, table rows. */
 const count = (name: 'columns' | 'rows' | 'items') =>
-  document.querySelectorAll(name === 'items' ? '.board-card' : name === 'columns' ? '.board-head, .columns__item' : 'tr[data-row-id]').length
+  document.querySelectorAll(name === 'items' ? '.board-card' : name === 'columns' ? '.board-head, .chips__list .chip:not(.chip--add)' : 'tr[data-row-id]').length
+
+const chipNames = () => [...document.querySelectorAll('.chips__list .chip:not(.chip--add) .chip__name')].map((n) => n.textContent)
+
+const chip = (name: string) => within(document.querySelector('.chips__list') as HTMLElement).getByRole('button', { name: new RegExp(`^${name}`) })
 
 describe('Editor', () => {
   it('Load sample fills the preview with the Cairo agenda', async () => {
@@ -711,15 +715,12 @@ describe('Editor', () => {
       expect(screen.getByRole('heading', { name: 'Grid' })).toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: 'Table' }))
       expect(screen.getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true')
-      expect(grid).toHaveAttribute('aria-pressed', 'false')
+      expect(screen.getByRole('button', { name: 'Track grid' })).toHaveAttribute('aria-pressed', 'false')
       expect(screen.getByRole('heading', { name: 'Table' })).toBeInTheDocument()
       expect(screen.queryByRole('heading', { name: 'Grid' })).not.toBeInTheDocument()
       expect(count('columns')).toBe(3)
-      expect(['Column 1 name', 'Column 2 name', 'Column 3 name'].map((l) => (screen.getByLabelText(l) as HTMLInputElement).value)).toEqual([
-        'Session',
-        'Speaker',
-        'Tag',
-      ])
+      expect(chipNames()).toEqual(['Session', 'Speaker', 'Tag'])
+      expect(screen.queryByRole('dialog', { name: /Edit column/ })).not.toBeInTheDocument()
       expect(preview()).toContain('<table class="sched">')
       expect(preview()).not.toContain('class="agenda"')
     })
@@ -757,13 +758,16 @@ describe('Editor', () => {
 
     it('a type change reshapes the column: time input, colour for tags, text kept otherwise', async () => {
       const user = await openTable()
-      await user.click(screen.getByRole('button', { name: '+ Add column' }))
+      await user.click(screen.getByRole('button', { name: '+ Column' }))
+      // The new column's editor opens with its name selected.
       expect((screen.getByLabelText('Column 4 name') as HTMLInputElement).value).toBe('Column 4')
+      expect(screen.getByLabelText('Column 4 name')).toHaveFocus()
       expect(screen.getByLabelText('Column 4 type')).toHaveValue('text')
       expect(screen.queryByLabelText('Column 4 color')).not.toBeInTheDocument()
       await user.type(screen.getByLabelText('Column 4 for row 09:00'), 'Main hall')
       expect(preview()).toContain('Main hall')
 
+      await user.click(chip('Column 4')) // typing in the table closed the editor; open it again
       await user.selectOptions(screen.getByLabelText('Column 4 type'), 'tag')
       expect(screen.getByLabelText('Column 4 color')).toBeInTheDocument()
       expect(preview()).toContain('class="chip" style="--c:')
@@ -776,18 +780,42 @@ describe('Editor', () => {
       expect(preview()).toContain('td data-label="Column 4" class="n">10:30</td>')
     })
 
-    it('add column, move and remove work on the table columns (removing is undoable)', async () => {
+    it('a column chip opens a small editor: rename live, Esc or Done closes it', async () => {
       const user = await openTable()
-      await user.click(screen.getByRole('button', { name: 'Move column 2 up' }))
-      expect(['Column 1 name', 'Column 2 name'].map((l) => (screen.getByLabelText(l) as HTMLInputElement).value)).toEqual(['Speaker', 'Session'])
+      await user.click(chip('Speaker'))
+      const dialog = screen.getByRole('dialog', { name: 'Edit column 2' })
+      await user.clear(within(dialog).getByLabelText('Column 2 name'))
+      await user.type(within(dialog).getByLabelText('Column 2 name'), 'Presenter')
+      expect(chipNames()).toEqual(['Session', 'Presenter', 'Tag'])
+      expect(preview()).toContain('Presenter')
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog', { name: /Edit column/ })).not.toBeInTheDocument()
+      await user.click(chip('Tag'))
+      await user.click(screen.getByRole('button', { name: 'Done' }))
+      expect(screen.queryByRole('dialog', { name: /Edit column/ })).not.toBeInTheDocument()
+    })
+
+    it('chips reorder with Alt+Arrow, and removing a column is undoable', async () => {
+      const user = await openTable()
+      chip('Speaker').focus()
+      await user.keyboard('{Alt>}{ArrowLeft}{/Alt}')
+      expect(chipNames()).toEqual(['Speaker', 'Session', 'Tag'])
       await user.type(screen.getByLabelText('Session for row 09:00'), 'Keep?')
+      await user.click(chip('Session'))
       await user.click(screen.getByRole('button', { name: 'Remove column 2' }))
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument() // Undo takes it back, so nothing asks
+      expect(screen.queryByRole('dialog', { name: /Remove/ })).not.toBeInTheDocument() // Undo takes it back, so nothing asks
       expect(count('columns')).toBe(2)
       expect(preview()).not.toContain('Keep?')
       await user.click(within(screen.getByRole('status', { name: 'Notification' })).getByRole('button', { name: 'Undo' }))
       expect(count('columns')).toBe(3)
       expect(screen.getByLabelText('Session for row 09:00')).toHaveValue('Keep?')
+    })
+
+    it('the table uses the full width and there is no tall Columns panel', async () => {
+      await openTable()
+      expect(screen.queryByRole('heading', { name: 'Columns' })).not.toBeInTheDocument()
+      expect(document.querySelector('.table-section')).not.toBeNull()
+      expect(document.querySelector('.main__bar .chips')).not.toBeNull()
     })
 
     it('rows: add, times and notes', async () => {

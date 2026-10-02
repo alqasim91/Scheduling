@@ -69,7 +69,9 @@ export function TopBar(props: Props) {
       <span className="topbar__spacer" />
       <Segmented label="View" value={props.view} options={options} onChange={props.onView} />
       <span className="topbar__status" role="status" aria-label="Autosave status">
-        {props.status === 'saved' ? 'Saved' : 'Saving…'}
+        <span key={props.status} className="topbar__status-text">
+          {props.status === 'saved' ? 'Saved' : 'Saving…'}
+        </span>
       </span>
       <button type="button" className="primary" onClick={props.onExport} disabled={props.exporting}>
         Export

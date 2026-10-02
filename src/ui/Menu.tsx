@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 
 export interface MenuItem {
   label: string
@@ -7,12 +7,17 @@ export interface MenuItem {
 }
 
 interface Props {
+  /** The menu's accessible name (and the button's text unless `display` is given). */
   label: string
   items: readonly MenuItem[]
+  /** What the button shows instead of the label and a caret, e.g. an icon. */
+  display?: ReactNode
+  /** Open the list towards the end of the screen (for buttons at the end of a row). */
+  alignEnd?: boolean
 }
 
 /** A dropdown menu button: arrow keys move, Enter or click chooses, Esc or a click elsewhere closes. */
-export function MenuButton({ label, items }: Props) {
+export function MenuButton({ label, items, display, alignEnd }: Props) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -64,6 +69,7 @@ export function MenuButton({ label, items }: Props) {
         ref={trigger}
         type="button"
         className="ghost"
+        aria-label={display ? label : undefined}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
@@ -75,11 +81,15 @@ export function MenuButton({ label, items }: Props) {
           }
         }}
       >
-        {label}
-        <span aria-hidden="true"> ▾</span>
+        {display ?? (
+          <>
+            {label}
+            <span aria-hidden="true"> ▾</span>
+          </>
+        )}
       </button>
       {open && (
-        <div id={id} className="menu__list" role="menu" aria-label={label}>
+        <div id={id} className={alignEnd ? 'menu__list menu__list--end' : 'menu__list'} role="menu" aria-label={label}>
           {items.map((item) => (
             <button
               key={item.label}

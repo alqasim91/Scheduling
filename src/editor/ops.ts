@@ -222,6 +222,20 @@ export function moveColumnTo(schedule: Schedule, id: string, toTrackIndex: numbe
 }
 
 /**
+ * Move a table column to a position among the table columns (0 = first). Refused for unknown
+ * ids, tracks, out-of-range positions and no-ops.
+ */
+export function moveTableColumnTo(schedule: Schedule, id: string, toIndex: number): Schedule {
+  const own = tableColumns(schedule)
+  const from = own.findIndex((c) => c.id === id)
+  if (from < 0 || !Number.isInteger(toIndex) || toIndex < 0 || toIndex >= own.length || toIndex === from) return schedule
+  const step: Direction = toIndex > from ? 1 : -1
+  let next = schedule
+  for (let i = from; i !== toIndex; i += step) next = moveColumn(next, id, step)
+  return next
+}
+
+/**
  * Switch between track-grid and table. Nothing is deleted: when the target mode has no columns
  * yet, they are created (Session/Speaker/Tag for a table, two tracks for a grid).
  */

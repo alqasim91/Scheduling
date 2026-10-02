@@ -24,22 +24,31 @@ export function loadAutosaved(key: string): Schedule | null {
   return readAutosaved(key)?.schedule ?? null
 }
 
+/** A save has to be outstanding this long before the status admits to "Saving…". */
+export const SLOW_SAVE_MS = 400
+
 /**
  * Debounced write of `value` to localStorage. Quota/access errors are swallowed.
  * Pending writes are flushed on unmount and on `beforeunload`. The initial value
- * is not written; only changes are.
+ * is not written; only changes are. The status says 'saving' only when a write is still
+ * outstanding `SLOW_SAVE_MS` after the latest change (the debounce is shorter, so that is rare);
+ * otherwise it reads 'saved' straight away instead of flickering on every keystroke.
  */
-export function useAutosave(key: string, value: Schedule, delayMs = 500): 'saved' | 'saving' {
+export function useAutosave(key: string, value: Schedule, delayMs = 300): 'saved' | 'saving' {
   const latest = useRef({ key, value })
   const saved = useRef(value)
   // What was last written (state, so the status can be shown); the ref above is what flush compares.
   const [written, setWritten] = useState(value)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const slowTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const [slow, setSlow] = useState(false)
 
   // Writes the latest value if it has not been written yet. Only touches refs.
   const flush = useCallback(() => {
     clearTimeout(timer.current)
     timer.current = undefined
+    clearTimeout(slowTimer.current)
+    setSlow(false)
     const { key: k, value: v } = latest.current
     if (v === saved.current) return
     try {
@@ -56,6 +65,8 @@ export function useAutosave(key: string, value: Schedule, delayMs = 500): 'saved
     if (value === saved.current) return
     clearTimeout(timer.current)
     timer.current = setTimeout(flush, delayMs)
+    clearTimeout(slowTimer.current)
+    slowTimer.current = setTimeout(() => setSlow(true), SLOW_SAVE_MS)
   }, [key, value, delayMs, flush])
 
   useEffect(() => {
@@ -66,5 +77,5 @@ export function useAutosave(key: string, value: Schedule, delayMs = 500): 'saved
     }
   }, [flush])
 
-  return written === value ? 'saved' : 'saving'
+  return written !== value && slow ? 'saving' : 'saved'
 }

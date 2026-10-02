@@ -8,10 +8,13 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
+import type { ReactNode } from 'react'
 import { newId } from '../../model/ids.ts'
 import type { Schedule } from '../../model/schema.ts'
 import { toMinutes } from '../../model/time.ts'
+import { MenuButton } from '../../ui/Menu.tsx'
 import { useNotify } from '../../ui/notifyContext.ts'
+import { NARROW_PX, useWidth } from '../../ui/useWidth.ts'
 import {
   addColumn,
   addItem,
@@ -64,10 +67,15 @@ interface Props {
   rtl: boolean
   /** The id of a just-created session that has no title yet, or null. */
   onUnnamedChange?: (id: string | null) => void
+  /** The Track grid | Table switch, shown at the start of the board bar. */
+  modeSwitch: ReactNode
 }
 
 /** Appended to a repeated announcement so screen readers see a change. */
 const ZWSP = String.fromCharCode(0x200b)
+/** What a card shows while it hovers over a spot it cannot take. */
+const SPOT_TAKEN = 'Spot taken'
+const TINY_PX = 14
 const ZOOM_KEY = 'schedule-builder:board-zoom'
 function readZoom(): Zoom {
   try {
@@ -100,8 +108,9 @@ function cardBox(p: { first: number; last: number; start: number; end: number },
  * The calendar-style board: time runs down the page, tracks are columns, sessions are cards you
  * create (drag on empty space), move, and resize with the pointer or the keyboard.
  */
-export function Board({ schedule, apply, undo, rollbackTo, rtl, onUnnamedChange }: Props) {
+export function Board({ schedule, apply, undo, rollbackTo, rtl, onUnnamedChange, modeSwitch }: Props) {
   const notify = useNotify()
+  const narrow = useWidth() < NARROW_PX
   const [zoom, setZoom] = useState<Zoom>(readZoom)
   const [extra, setExtra] = useState({ before: 0, after: 0 })
   const [pickedId, setSelectedId] = useState<string | null>(null)
@@ -202,7 +211,7 @@ export function Board({ schedule, apply, undo, rollbackTo, rtl, onUnnamedChange 
     el.classList.toggle('is-invalid', !p.valid)
     el.dataset.kind = kind
     const label = previewLabelRef.current
-    if (label) label.textContent = `${formatMinutes(p.start)} – ${formatMinutes(p.end)}`
+    if (label) label.textContent = p.valid || kind !== 'move' ? `${formatMinutes(p.start)} – ${formatMinutes(p.end)}` : SPOT_TAKEN
   }, [])
 
   const showPlaceholder = useCallback((extent: Extent) => {
@@ -221,8 +230,11 @@ export function Board({ schedule, apply, undo, rollbackTo, rtl, onUnnamedChange 
     for (const el of [previewRef.current, placeholderRef.current, markerRef.current]) if (el) el.style.display = 'none'
     for (const card of cardEls.current.values()) {
       if (card.classList.contains('is-moving')) {
-        card.classList.remove('is-moving')
+        card.classList.remove('is-moving', 'is-invalid')
         card.style.transform = ''
+        // Put back the time the card shows (it showed the snapped target while moving).
+        const time = card.querySelector<HTMLElement>('.board-card__time')
+        if (time?.dataset.text) time.textContent = time.dataset.text
       }
     }
   }, [])
@@ -454,7 +466,12 @@ export function Board({ schedule, apply, undo, rollbackTo, rtl, onUnnamedChange 
         element.classList.add('is-moving')
         element.style.transform = `translate3d(${dx}px, ${dy}px, 0)`
         showPlaceholder(original)
-        showPreview(previewAt(pt), 'move')
+        // The card itself says where it would land: the snapped time, or why it cannot.
+        const p = previewAt(pt)
+        const time = element.querySelector('.board-card__time')
+        if (time) time.textContent = p.valid ? `${formatMinutes(p.start)} – ${formatMinutes(p.end)}` : SPOT_TAKEN
+        element.classList.toggle('is-invalid', !p.valid)
+        showPreview(p, 'move')
       },
       finish: (pt, dragging) => {
         if (!dragging) return
@@ -468,7 +485,7 @@ export function Board({ schedule, apply, undo, rollbackTo, rtl, onUnnamedChange 
         if (commit((s) => moveItem(s, id, formatMinutes(p.start), trackIds[p.first] as string))) {
           // Drop the card straight onto its new place so it does not flash back before the render.
           Object.assign(element.style, cardBox(p, trackIds.length, live.current.range, live.current.ppm))
-          element.classList.remove('is-moving')
+          element.classList.remove('is-moving', 'is-invalid')
           element.style.transform = ''
           hidePreview()
           announce(`Moved to ${formatMinutes(p.start)}, ${tracks.slice(p.first, p.last + 1).map((c) => c.name).join(' and ')}`)
@@ -629,20 +646,44 @@ export function Board({ schedule, apply, undo, rollbackTo, rtl, onUnnamedChange 
   return (
     <section className="board" aria-labelledby="panel-grid">
       <div className="board__bar">
-        <h2 id="panel-grid">Grid</h2>
-        <button type="button" className="primary" onClick={addAtSuggestedSlot} disabled={n === 0}>
-          + Add session
-        </button>
-        <button type="button" onClick={addTrack}>
-          + Track
-        </button>
-        <div className="segmented board__zoom" role="group" aria-label="Zoom">
-          {(['compact', 'comfortable'] as const).map((z) => (
-            <button key={z} type="button" aria-pressed={zoom === z} onClick={() => setZoom(z)}>
-              {z === 'compact' ? 'Compact' : 'Comfortable'}
+        {modeSwitch}
+        <h2 id="panel-grid" className="sr-only">
+          Grid
+        </h2>
+        <span className="board__spacer" />
+        {narrow ? (
+          <>
+            <button type="button" className="primary board__icon" aria-label="Add session" title="Add session" onClick={addAtSuggestedSlot} disabled={n === 0}>
+              +
             </button>
-          ))}
-        </div>
+            <MenuButton
+              label="More board options"
+              display={<span aria-hidden="true">⋯</span>}
+              alignEnd
+              items={[
+                { label: '+ Track', onSelect: addTrack },
+                { label: `${zoom === 'compact' ? '✓ ' : ''}Compact zoom`, onSelect: () => setZoom('compact') },
+                { label: `${zoom === 'comfortable' ? '✓ ' : ''}Comfortable zoom`, onSelect: () => setZoom('comfortable') },
+              ]}
+            />
+          </>
+        ) : (
+          <>
+            <button type="button" className="primary" onClick={addAtSuggestedSlot} disabled={n === 0}>
+              + Add session
+            </button>
+            <button type="button" onClick={addTrack}>
+              + Track
+            </button>
+            <div className="segmented board__zoom" role="group" aria-label="Zoom">
+              {(['compact', 'comfortable'] as const).map((z) => (
+                <button key={z} type="button" aria-pressed={zoom === z} onClick={() => setZoom(z)}>
+                  {z === 'compact' ? 'Compact' : 'Comfortable'}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="board__viewport" ref={viewportRef}>
@@ -705,6 +746,9 @@ export function Board({ schedule, apply, undo, rollbackTo, rtl, onUnnamedChange 
                 const dur = toMinutes(item.end) - toMinutes(item.start)
                 const h = dur * ppm
                 const size = dur <= 20 || h < 38 ? 'xs' : h < 70 ? 'sm' : 'md'
+                // Cards shorter than this are mostly handle: only the bottom edge resizes, the body drags.
+                const tiny = h < TINY_PX
+                const timeText = size === 'xs' ? `${item.start}–${item.end}` : `${item.start} – ${item.end}`
                 const track = tracks[card.first]
                 const label = `${item.title.trim() || 'Untitled session'}, ${item.start} to ${item.end}, ${trackLabel(schedule, card)}`
                 return (
@@ -714,7 +758,7 @@ export function Board({ schedule, apply, undo, rollbackTo, rtl, onUnnamedChange 
                       if (el) cardEls.current.set(item.id, el)
                       else cardEls.current.delete(item.id)
                     }}
-                    className={`board-card board-card--${item.variant} board-card--${size}${selectedId === item.id ? ' is-selected' : ''}`}
+                    className={`board-card board-card--${item.variant} board-card--${size}${tiny ? ' board-card--tiny' : ''}${selectedId === item.id ? ' is-selected' : ''}`}
                     role="button"
                     tabIndex={0}
                     aria-label={label}
@@ -737,14 +781,14 @@ export function Board({ schedule, apply, undo, rollbackTo, rtl, onUnnamedChange 
                     <div className="board-card__text" dir="auto">
                       <strong className={item.title.trim() ? '' : 'board-card__empty'}>{item.title.trim() || 'Untitled session'}</strong>
                       {size === 'xs' ? (
-                        <span className="board-card__time">
-                          {item.start}–{item.end}
+                        <span className="board-card__time" data-text={timeText}>
+                          {timeText}
                         </span>
                       ) : (
                         <>
                           {item.speaker && size === 'md' && <span className="board-card__speaker">{item.speaker}</span>}
-                          <span className="board-card__time">
-                            {item.start} – {item.end}
+                          <span className="board-card__time" data-text={timeText}>
+                            {timeText}
                           </span>
                         </>
                       )}

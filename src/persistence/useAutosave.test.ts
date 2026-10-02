@@ -28,10 +28,28 @@ describe('useAutosave', () => {
   it('writes after the delay, not before', () => {
     const { rerender } = renderHook(({ v }) => useAutosave('k', v), { initialProps: { v: titled('A') } })
     rerender({ v: titled('B') })
-    act(() => void vi.advanceTimersByTime(499))
+    act(() => void vi.advanceTimersByTime(299))
     expect(localStorage.getItem('k')).toBeNull()
     act(() => void vi.advanceTimersByTime(1))
     expect(loadAutosaved('k')?.event.title).toBe('B')
+  })
+
+  it('says Saved straight away when the write is quick, and Saving… only once it takes over 400 ms', () => {
+    const quick = renderHook(({ v }) => useAutosave('k', v), { initialProps: { v: titled('A') } })
+    quick.rerender({ v: titled('B') })
+    expect(quick.result.current).toBe('saved')
+    act(() => void vi.advanceTimersByTime(400))
+    expect(quick.result.current).toBe('saved')
+    quick.unmount()
+
+    const slow = renderHook(({ v }) => useAutosave('k2', v, 1000), { initialProps: { v: titled('A') } })
+    slow.rerender({ v: titled('B') })
+    act(() => void vi.advanceTimersByTime(399))
+    expect(slow.result.current).toBe('saved')
+    act(() => void vi.advanceTimersByTime(1))
+    expect(slow.result.current).toBe('saving')
+    act(() => void vi.advanceTimersByTime(600))
+    expect(slow.result.current).toBe('saved')
   })
 
   it('debounces rapid changes into a single write of the latest value', () => {

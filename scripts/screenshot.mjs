@@ -229,7 +229,7 @@ try {
       await smallPage.screenshot({ path: out })
       console.log(`wrote ${out}`)
       // The session editor as a sheet / popover over the board.
-      await smallPage.getByRole('button', { name: '+ Add session' }).click()
+      await smallPage.getByRole('button', { name: 'Add session' }).click()
       await smallPage.waitForTimeout(300)
       const sheet = join(outDir, `${name}-editing.png`)
       await smallPage.screenshot({ path: sheet })

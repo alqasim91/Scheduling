@@ -167,8 +167,12 @@ test.describe('moving sessions', () => {
     await page.mouse.move(to.x, to.y, { steps: 15 })
     await expect(board.preview()).toContainText('10:10 – 11:10')
     await expect(board.preview()).not.toHaveClass(/is-invalid/)
+    // The moving card's own time follows the snapped target live, not the time it started at.
+    await expect(card.locator('.board-card__time')).toHaveText('10:10 – 11:10')
+    await expect(card).not.toHaveClass(/is-invalid/)
     await page.mouse.up()
     await expect(card).toHaveAccessibleName('Alpha talk, 10:10 to 11:10, Beta')
+    await expect(card.locator('.board-card__time')).toHaveText('10:10 – 11:10')
     await expect.poll(() => board.previewText()).toContain('10:10 – 11:10')
     // One drag, one undo step.
     await page.keyboard.press('Control+z')
@@ -196,8 +200,15 @@ test.describe('moving sessions', () => {
     await page.mouse.down()
     await page.mouse.move(to.x, to.y, { steps: 10 })
     await expect(board.preview()).toHaveClass(/is-invalid/)
+    // The reason sits in the card's own label (a red border alone could hide under the card).
+    const moving = board.card('Alpha talk')
+    await expect(moving).toHaveClass(/is-invalid/)
+    await expect(moving.locator('.board-card__time')).toHaveText('Spot taken')
+    await expect(board.preview()).toContainText('Spot taken')
     await page.mouse.up()
     await expect(board.preview()).toBeHidden()
+    await expect(moving).not.toHaveClass(/is-invalid/)
+    await expect(moving.locator('.board-card__time')).toHaveText('09:00 – 10:00')
     await expect(board.card('Alpha talk')).toHaveAccessibleName('Alpha talk, 09:00 to 10:00, Alpha')
     await expect(board.card('Beta talk')).toHaveAccessibleName('Beta talk, 09:00 to 09:45, Beta')
     await expect(page.getByRole('banner').getByRole('button', { name: 'Undo' })).toBeDisabled()
@@ -217,6 +228,7 @@ test.describe('moving sessions', () => {
     await expect(board.preview()).toBeHidden()
     await expect(board.card('Alpha talk')).toHaveAccessibleName('Alpha talk, 09:00 to 10:00, Alpha')
     await expect(page.locator('.board-card.is-moving')).toHaveCount(0)
+    await expect(board.card('Alpha talk').locator('.board-card__time')).toHaveText('09:00 – 10:00')
   })
 
   test('a tiny movement is a click, not a move', async ({ page }) => {

@@ -23,6 +23,7 @@ import {
   moveColumnTo,
   moveItem,
   moveRow,
+  moveTableColumnTo,
   removeColumn,
   removeItem,
   removeRow,
@@ -177,6 +178,26 @@ describe('moveColumnTo', () => {
     expect(item(moved, 'ab').columnIds).toEqual(['A'])
     expect(item(moved, 'c').columnIds).toEqual(['C'])
     expectValid(moved)
+  })
+})
+
+describe('moveTableColumnTo', () => {
+  it('moves a table column to a position among the table columns', () => {
+    const s = setMode(grid(), 'table')
+    const [a, b, c] = tableColumns(s).map((col) => col.id) as [string, string, string]
+    const order = (x: typeof s) => tableColumns(x).map((col) => col.id)
+    expect(order(moveTableColumnTo(s, a, 2))).toEqual([b, c, a])
+    expect(order(moveTableColumnTo(s, c, 0))).toEqual([c, a, b])
+  })
+
+  it('refuses no-ops, bad positions, tracks and unknown ids', () => {
+    const s = setMode(grid(), 'table')
+    const a = tableColumns(s)[0]!.id
+    expect(moveTableColumnTo(s, a, 0)).toBe(s)
+    expect(moveTableColumnTo(s, a, 3)).toBe(s)
+    expect(moveTableColumnTo(s, a, -1)).toBe(s)
+    expect(moveTableColumnTo(s, 'A', 1)).toBe(s)
+    expect(moveTableColumnTo(s, 'nope', 1)).toBe(s)
   })
 })
 

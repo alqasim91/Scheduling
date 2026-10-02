@@ -68,13 +68,15 @@ describe('top bar', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
-  it('shows Saving… after an edit and Saved once it has been written', async () => {
+  it('goes straight to Saved after an edit (no Saving… flicker) and writes it', async () => {
     const user = userEvent.setup()
     render(<App />)
     const status = screen.getByRole('status', { name: 'Autosave status' })
     await user.type(screen.getByLabelText('Event title'), '!')
-    expect(status).toHaveTextContent('Saving…')
-    await waitFor(() => expect(status).toHaveTextContent('Saved'), { timeout: 2000 })
+    expect(status).toHaveTextContent('Saved')
+    expect(status).not.toHaveTextContent('Saving')
+    await waitFor(() => expect(localStorage.getItem(STORAGE_KEY)).toContain('Untitled event!'), { timeout: 2000 })
+    expect(status).toHaveTextContent('Saved')
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}').event.title).toBe('Untitled event!')
   })
 
