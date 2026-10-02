@@ -13,6 +13,7 @@ export const EN_LABELS: ResolvedLabels = {
   continuesUntil: 'continues until',
   eventLink: 'Official event page',
   sessionFallback: '{track} session',
+  now: 'Now',
 }
 
 const AR_LABELS: ResolvedLabels = {
@@ -24,6 +25,7 @@ const AR_LABELS: ResolvedLabels = {
   continuesUntil: 'تستمر حتى',
   eventLink: 'صفحة الفعالية الرسمية',
   sessionFallback: 'جلسة {track}',
+  now: 'الآن',
 }
 
 const FR_LABELS: ResolvedLabels = {
@@ -35,6 +37,7 @@ const FR_LABELS: ResolvedLabels = {
   continuesUntil: 'se poursuit jusqu’à',
   eventLink: 'Page officielle de l’événement',
   sessionFallback: 'Session {track}',
+  now: 'En cours',
 }
 
 const LABEL_SETS: Record<string, ResolvedLabels> = { en: EN_LABELS, ar: AR_LABELS, fr: FR_LABELS }

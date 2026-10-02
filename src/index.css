@@ -427,3 +427,34 @@ button.danger {
   grid-template-columns: 1fr 1.5fr;
   gap: 8px;
 }
+
+.toolbar {
+  flex-wrap: wrap;
+}
+
+.toolbar__sep {
+  width: 1px;
+  align-self: stretch;
+  background: #c4c7c5;
+}
+
+.toolbar__check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #444746;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  border: 1px solid #f9ab00;
+  border-radius: 8px;
+  background: #fef7e0;
+  font-size: 13px;
+}

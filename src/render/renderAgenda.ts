@@ -138,18 +138,20 @@ function renderItem(schedule: Schedule, ctx: Context, p: Placed, gridRow: string
     ? `<div class="spk"><span class="lbl">${escapeHtml(labels.speakerPrefix)}</span> ${escapeHtml(item.speaker)}</div>`
     : ''
 
+  // Hidden by CSS unless an exported page marks the card as happening now.
+  const badge = `<span class="badge">${escapeHtml(labels.now)}</span>`
   if (item.variant === 'highlight') {
-    return `<div class="ev key" style="${placement}"${times}>${title}${speaker}</div>`
+    return `<div class="ev key" style="${placement}"${times}>${badge}${title}${speaker}</div>`
   }
   if (item.variant === 'break') {
-    return `<div class="ev shared" style="${placement}"${times}>${title}${speaker}</div>`
+    return `<div class="ev shared" style="${placement}"${times}>${badge}${title}${speaker}</div>`
   }
 
   const spanned = schedule.columns.slice(p.firstCol, p.lastCol + 1)
   const chipLabel = p.spansAll && spanned.length > 1 ? '' : spanned.map((c) => c.name).join(' + ')
   const chip = chipLabel ? `<span class="chip" style="--c:${color}">${escapeHtml(chipLabel)}</span>` : ''
   const when = `<div class="when">${escapeHtml(fmt(ctx, p.start))} – ${escapeHtml(fmt(ctx, p.end))}</div>`
-  return `<div class="ev track" style="${placement};--c:${color}"${times}>${chip}${title}${speaker}${when}</div>`
+  return `<div class="ev track" style="${placement};--c:${color}"${times}>${badge}${chip}${title}${speaker}${when}</div>`
 }
 
 /* ---------- sections ---------- */
@@ -166,7 +168,8 @@ function renderHeader(schedule: Schedule, ctx: Context, placed: Placed[]): strin
   let time = ''
   if (first && minutesOf(first.start) !== null && latest !== null) {
     const zone = timezoneShortName(event.date, event.timezone, ctx.locale)
-    time = `<span class="time">${escapeHtml(fmt(ctx, first.start))} – ${escapeHtml(fmt(ctx, latest))}${zone ? ` ${escapeHtml(zone)}` : ''}</span>`
+    // Only the clock range uses the mono face; the zone name may be in any script.
+    time = `<span class="time"><span class="rng">${escapeHtml(fmt(ctx, first.start))} – ${escapeHtml(fmt(ctx, latest))}</span>${zone ? ` ${escapeHtml(zone)}` : ''}</span>`
   }
   const venue = event.venue ? `<span>${escapeHtml(event.venue)}</span>` : ''
   const status = event.status ? `<span>${escapeHtml(event.status)}</span>` : ''
@@ -318,6 +321,12 @@ export function renderAgendaBody(schedule: Schedule): string {
 export interface RenderOptions {
   /** Override the schedule's theme, e.g. for the editor's light/dark preview toggle. */
   forceTheme?: 'light' | 'dark'
+  /** Inline @font-face CSS (offline fonts). Replaces the Google Fonts `<link>`. */
+  fontCss?: string
+  /** Raw HTML placed first in `<head>`, after the viewport meta (e.g. a CSP meta). */
+  headPrefix?: string
+  /** Raw HTML placed just before `</body>` (e.g. scripts). */
+  bodyEnd?: string
 }
 
 /** A complete, self-contained HTML document (no scripts). */
@@ -326,20 +335,26 @@ export function renderDocument(schedule: Schedule, options: RenderOptions = {}):
   const theme = options.forceTheme ?? schedule.branding.theme
   const themeAttr = theme === 'light' || theme === 'dark' ? ` data-theme="${theme}"` : ''
   const fontsUrl = googleFontsUrl(schedule.branding.fonts.webFonts)
-  const fontsLink = fontsUrl ? `<link rel="stylesheet" href="${escapeHtml(fontsUrl)}">\n` : ''
+  const embedded = options.fontCss?.replace(/</g, '').trim()
+  const fontsLink = embedded
+    ? `<style id="embedded-fonts">\n${embedded}\n</style>\n`
+    : fontsUrl
+      ? `<link rel="stylesheet" href="${escapeHtml(fontsUrl)}">\n`
+      : ''
+  const prefix = options.headPrefix ? `${options.headPrefix}\n` : ''
   return `<!doctype html>
 <html lang="${escapeHtml(locale)}" dir="${resolveDirection(schedule.event)}"${themeAttr}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>${escapeHtml(schedule.event.title)}</title>
+${prefix}<title>${escapeHtml(schedule.event.title)}</title>
 ${fontsLink}<style>
 ${agendaCss(schedule)}
 </style>
 </head>
 <body>
 ${renderAgendaBody(schedule)}
-</body>
+${options.bodyEnd ? `${options.bodyEnd}\n` : ''}</body>
 </html>
 `
 }

@@ -36,3 +36,8 @@ export function slugify(text: string): string {
 export function scheduleFilename(title: string): string {
   return `${slugify(title) || 'schedule'}.json`
 }
+
+/** Filename for an exported page: slugified event title + ".html". */
+export function htmlFilename(title: string): string {
+  return `${slugify(title) || 'schedule'}.html`
+}

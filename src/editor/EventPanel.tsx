@@ -32,6 +32,7 @@ const LABEL_FIELDS: ReadonlyArray<readonly [keyof Labels, string]> = [
   ['trackSuffix', 'Track suffix'],
   ['continuesUntil', 'Continues-until text'],
   ['eventLink', 'Event link text'],
+  ['now', 'Now badge text'],
   ['sessionFallback', 'Session fallback ({track} = column name)'],
 ]
 

@@ -64,8 +64,8 @@ export function withGenericFallback(stack: string, generic: 'sans-serif' | 'mono
   return GENERIC_FAMILIES.includes(last) ? stack : `${stack}, ${generic}`
 }
 
-/** One Google Fonts stylesheet URL for the families, or null when there is nothing valid to load. */
-export function googleFontsUrl(families: readonly string[] | undefined): string | null {
+/** One Google Fonts stylesheet URL for the families, or null when there is nothing valid to load. `text` limits the files to those glyphs. */
+export function googleFontsUrl(families: readonly string[] | undefined, options: { text?: string } = {}): string | null {
   const unique = [...new Set((families ?? []).filter((f) => WEB_FONT_PATTERN.test(f)))]
   if (unique.length === 0) return null
   const parts = unique.map((family) => {
@@ -73,5 +73,6 @@ export function googleFontsUrl(families: readonly string[] | undefined): string 
     const name = family.trim().replace(/ +/g, '+')
     return weights ? `family=${name}:wght@${weights}` : `family=${name}`
   })
-  return `https://fonts.googleapis.com/css2?${parts.join('&')}&display=swap`
+  const subset = options.text ? `&text=${encodeURIComponent(options.text)}` : ''
+  return `https://fonts.googleapis.com/css2?${parts.join('&')}&display=swap${subset}`
 }

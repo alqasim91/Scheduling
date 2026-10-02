@@ -4,6 +4,8 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
+import { embedFonts } from '../src/export/embedFonts.ts'
+import { buildExportHtml } from '../src/export/exportHtml.ts'
 import { rtlDemo } from '../src/render/__fixtures__/rtlDemo.ts'
 import { renderDocument } from '../src/render/renderAgenda.ts'
 import { cairoSample } from '../src/samples/cairo.ts'
@@ -96,6 +98,32 @@ try {
       console.log(`wrote ${out}`)
       await context.close()
     }
+  }
+
+  // Print output: A4 PDFs of the exported pages (with real fonts when the network allows it),
+  // plus a print-media screenshot of the plain page.
+  for (const [name, schedule] of [
+    ['cairo', cairoSample],
+    ['rtl', rtlDemo],
+  ]) {
+    const embedded = await embedFonts(schedule, (url) => fetch(url, { signal: AbortSignal.timeout(10000) }))
+    const fontCss = 'css' in embedded ? embedded.css : undefined
+    if (!fontCss) console.log(`${name}: fonts not embedded for the PDF (${embedded.error}); using fallback fonts`)
+    const file = write(`${name}-print.html`, buildExportHtml(schedule, { fontCss }))
+    const context = await browser.newContext({ viewport: { width: 794, height: 1123 }, reducedMotion: 'no-preference' })
+    const page = await context.newPage()
+    await page.route(/https?:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)\/.*/, (route) => route.abort())
+    await page.goto(pathToFileURL(file).href, { waitUntil: 'load' })
+    const pdf = join(outDir, `${name}.pdf`)
+    await page.pdf({ path: pdf, format: 'A4', printBackground: true })
+    console.log(`wrote ${pdf}`)
+    if (name === 'cairo') {
+      await page.emulateMedia({ media: 'print' })
+      const png = join(outDir, 'cairo-print.png')
+      await page.screenshot({ path: png, fullPage: true })
+      console.log(`wrote ${png}`)
+    }
+    await context.close()
   }
 } finally {
   await browser.close()

@@ -120,6 +120,8 @@ export const LabelsSchema = z.object({
   trackSuffix: z.string().optional(),
   continuesUntil: z.string().optional(),
   eventLink: z.string().optional(),
+  /** Text of the "happening now" badge in exported pages. */
+  now: z.string().optional(),
 })
 
 export const ColumnSchema = z.object({

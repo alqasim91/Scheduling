@@ -184,3 +184,50 @@ describe('logo height and v1 compatibility', () => {
     expect(result.ok).toBe(true)
   })
 })
+
+describe('print css', () => {
+  const css = agendaCss({ ...cairoSample, branding: { ...cairoSample.branding, theme: 'dark' } })
+  const printBlock = css.slice(css.lastIndexOf('@media print{\n  :root'))
+
+  it('sets an A4 page with 12mm margins', () => {
+    expect(css).toContain('@page{size:A4;margin:12mm}')
+  })
+
+  it('forces the light palette after the dark rules, even for dark or auto themes', () => {
+    expect(css.indexOf(':root[data-theme="dark"]{color-scheme:dark')).toBeLessThan(css.lastIndexOf('@media print{'))
+    expect(printBlock).toContain(':root,:root[data-theme="dark"],:root:not([data-theme="light"]){color-scheme:light;--bg:#f8fafd;')
+    expect(printBlock).toContain('--lift:0%')
+  })
+
+  it('keeps backgrounds, avoids breaking cards, hides the badge, shows the link address', () => {
+    expect(printBlock).toContain('print-color-adjust:exact')
+    expect(printBlock).toContain('-webkit-print-color-adjust:exact')
+    expect(printBlock).toMatch(/\.ev,\.person[^{]*\{break-inside:avoid\}/)
+    expect(printBlock).toContain('.ev .badge{display:none!important}')
+    expect(printBlock).toContain('.btn::after{content:"(" attr(href) ")";margin-inline-start:.4em')
+  })
+
+  it('is present without motion too, and adds no animation css', () => {
+    expect(agendaCss(cairoSample)).toContain('@media print{')
+    expect(agendaCss(cairoSample)).not.toMatch(/animation|@keyframes/)
+  })
+})
+
+describe('now badge css and meta line', () => {
+  it('ports the reference badge styles using --note', () => {
+    const css = agendaCss(cairoSample)
+    expect(css).toContain('.ev .badge{display:none;')
+    expect(css).toContain('background:var(--note)')
+    expect(css).toContain('.ev.now{box-shadow:0 0 0 2px var(--note)}')
+    expect(css).toContain('.ev.now .badge{display:inline-block}')
+  })
+
+  it('applies the mono face to the time range only, not the zone name', () => {
+    const doc = new DOMParser().parseFromString(renderDocument(cairoSample), 'text/html')
+    expect(doc.querySelector('.time .rng')?.textContent).toBe('13:30 – 17:45')
+    expect(doc.querySelector('.time')?.textContent).toBe('13:30 – 17:45 EEST')
+    const css = agendaCss(cairoSample)
+    expect(css).toContain('.rng{font-family:var(--mono)}')
+    expect(css).not.toMatch(/\.time\{[^}]*font-family/)
+  })
+})
