@@ -14,6 +14,7 @@ export const EN_LABELS: ResolvedLabels = {
   eventLink: 'Official event page',
   sessionFallback: '{track} session',
   now: 'Now',
+  time: 'Time',
 }
 
 const AR_LABELS: ResolvedLabels = {
@@ -26,6 +27,7 @@ const AR_LABELS: ResolvedLabels = {
   eventLink: 'صفحة الفعالية الرسمية',
   sessionFallback: 'جلسة {track}',
   now: 'الآن',
+  time: 'الوقت',
 }
 
 const FR_LABELS: ResolvedLabels = {
@@ -38,6 +40,7 @@ const FR_LABELS: ResolvedLabels = {
   eventLink: 'Page officielle de l’événement',
   sessionFallback: 'Session {track}',
   now: 'En cours',
+  time: 'Horaire',
 }
 
 const LABEL_SETS: Record<string, ResolvedLabels> = { en: EN_LABELS, ar: AR_LABELS, fr: FR_LABELS }

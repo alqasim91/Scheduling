@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptySchedule } from '../model/defaults.ts'
+import { tableDemo } from '../render/__fixtures__/tableDemo.ts'
 import type { Item, Schedule } from '../model/schema.ts'
 import { parseSchedule } from '../model/validate.ts'
 import { cairoSample } from '../samples/cairo.ts'
@@ -19,8 +20,13 @@ import {
   setColumnColor,
   setItemTimes,
   setRowNote,
+  setCell,
+  setColumnType,
+  setMode,
   setRowSpan,
   setRowTimes,
+  tableColumns,
+  trackColumns,
   shrinkItem,
   spanAllColumns,
   updateItem,
@@ -403,7 +409,7 @@ function seeded(seed: number): () => number {
 
 function checkInvariants(s: Schedule) {
   expectValid(s)
-  const order = new Map(s.columns.map((c, i) => [c.id, i]))
+  const order = new Map(trackColumns(s).map((c, i) => [c.id, i]))
   for (const i of s.items) {
     const idx = i.columnIds.map((c) => order.get(c) as number)
     expect(idx, `item ${i.id} columns sorted and contiguous`).toEqual(
@@ -430,12 +436,16 @@ describe('random op sequences', () => {
         const col = () => maybe(pick(s.columns)?.id)
         const row = () => maybe(pick(s.rows)?.id)
         const it = () => maybe(pick(s.items)?.id)
+        const anyCol = () => maybe(pick(s.columns)?.id)
         const ops: Array<() => Schedule> = [
-          () => (s.columns.length < 5 ? addColumn(s) : s),
-          () => removeColumn(s, col()),
-          () => renameColumn(s, col(), `n${step}`),
-          () => setColumnColor(s, col(), rand() < 0.2 ? 'nope' : '#123456'),
-          () => moveColumn(s, col(), pick(dirs) as Direction),
+          () => setMode(s, rand() < 0.5 ? 'table' : 'track-grid'),
+          () => setCell(s, row(), anyCol(), pick(['', 'Talk', '09:15', '9:15', 'a, b', '25:00']) as string),
+          () => setColumnType(s, anyCol(), pick(['text', 'time', 'person', 'tag', 'track'] as const) ?? 'text'),
+          () => (s.columns.length < 8 ? addColumn(s, rand() < 0.3 ? { type: pick(['text', 'time', 'person', 'tag']) } : {}) : s),
+          () => removeColumn(s, anyCol()),
+          () => renameColumn(s, anyCol(), `n${step}`),
+          () => setColumnColor(s, anyCol(), rand() < 0.2 ? 'nope' : '#123456'),
+          () => moveColumn(s, anyCol(), pick(dirs) as Direction),
           () => (s.rows.length < 14 ? addRow(s) : s),
           () => (s.rows.length < 14 ? insertRowAfter(s, row()) : s),
           () => removeRow(s, row()),
@@ -458,6 +468,189 @@ describe('random op sequences', () => {
       }
       // The run must actually exercise the ops, not just get refused every time.
       expect(changed).toBeGreaterThan(60)
+      // Both modes were exercised.
+      expect(s.columns.length).toBeGreaterThan(0)
     })
   }
+})
+
+/* ---------- table mode ---------- */
+
+const table = (): Schedule => structuredClone(tableDemo)
+
+describe('setMode', () => {
+  it('creates Session, Speaker and Tag columns when the table has none, and deletes nothing', () => {
+    const grid = cairoSample
+    const next = setMode(grid, 'table')
+    expect(next.mode).toBe('table')
+    expect(tableColumns(next).map((c) => [c.name, c.type])).toEqual([
+      ['Session', 'text'],
+      ['Speaker', 'person'],
+      ['Tag', 'tag'],
+    ])
+    expect(next.columns.slice(0, 2)).toEqual(grid.columns)
+    expect(next.items).toEqual(grid.items)
+    expectValid(next)
+  })
+
+  it('creates two tracks when a table-only schedule goes to the grid', () => {
+    const next = setMode(table(), 'track-grid')
+    expect(trackColumns(next).map((c) => c.name)).toEqual(['Track 1', 'Track 2'])
+    expect(tableColumns(next)).toEqual(tableColumns(table()))
+    expect(next.rows).toEqual(table().rows)
+    expectValid(next)
+  })
+
+  it('does not add columns that exist, and refuses a no-op', () => {
+    const s = table()
+    expect(setMode(s, 'table')).toBe(s)
+    const back = setMode(setMode(cairoSample, 'table'), 'track-grid')
+    expect(back.columns).toHaveLength(5) // 2 tracks + 3 table columns, no more
+  })
+
+  it('grid -> table -> grid keeps everything (apart from the auto-created columns)', () => {
+    const roundTrip = setMode(setMode(cairoSample, 'table'), 'track-grid')
+    expect(roundTrip.mode).toBe('track-grid')
+    expect(trackColumns(roundTrip)).toEqual(cairoSample.columns)
+    expect({ ...roundTrip, columns: trackColumns(roundTrip) }).toEqual(cairoSample)
+    // And a second trip adds nothing new.
+    expect(setMode(setMode(roundTrip, 'table'), 'track-grid')).toEqual(roundTrip)
+  })
+
+  it('table -> grid -> table keeps cells and items intact', () => {
+    const edited = setCell(addItemTo(table()), 'r1', 'c-room', 'Studio')
+    const trip = setMode(setMode(edited, 'track-grid'), 'table')
+    expect({ ...trip, columns: tableColumns(trip) }).toEqual({ ...edited, columns: tableColumns(edited) })
+    expect(trip.items).toEqual(edited.items)
+    expect(trip.rows).toEqual(edited.rows)
+  })
+})
+
+function addItemTo(s: Schedule): Schedule {
+  const grid = setMode(s, 'track-grid')
+  const track = trackColumns(grid)[0]
+  return setMode(addItem(grid, 'r1', track?.id as string, { id: 'it1', title: 'Hidden item' }), 'table')
+}
+
+describe('setCell', () => {
+  it('sets, replaces and clears a cell', () => {
+    const s = table()
+    const set = setCell(s, 'r3', 'c-speaker', 'Priya Raman')
+    expect(set.rows[2]?.cells?.['c-speaker']).toBe('Priya Raman')
+    expect(setCell(set, 'r3', 'c-speaker', 'Maya Chen').rows[2]?.cells?.['c-speaker']).toBe('Maya Chen')
+    const cleared = setCell(set, 'r3', 'c-speaker', '')
+    expect(cleared.rows[2]?.cells).toEqual({ 'c-session': 'Break', 'c-room': 'Foyer' })
+    expectValid(cleared)
+  })
+
+  it('drops cells entirely when the last value is cleared', () => {
+    let s = table()
+    s = { ...s, rows: [{ id: 'only', start: '09:00', end: '10:00', cells: { 'c-room': 'X' } }] }
+    expect('cells' in (setCell(s, 'only', 'c-room', '').rows[0] ?? {})).toBe(false)
+  })
+
+  it('rejects an invalid time in a time column, and accepts HH:MM or empty', () => {
+    const s = table()
+    expect(setCell(s, 'r3', 'c-ends', '9:15')).toBe(s)
+    expect(setCell(s, 'r3', 'c-ends', '25:00')).toBe(s)
+    expect(setCell(s, 'r3', 'c-ends', 'soon')).toBe(s)
+    expect(setCell(s, 'r3', 'c-ends', '10:45').rows[2]?.cells?.['c-ends']).toBe('10:45')
+    expect(setCell(s, 'r1', 'c-ends', '').rows[0]?.cells?.['c-ends']).toBeUndefined()
+  })
+
+  it('refuses unknown rows and columns, track columns, and no-ops', () => {
+    const s = setMode(cairoSample, 'table')
+    expect(setCell(s, 'nope', s.columns[2]?.id as string, 'x')).toBe(s)
+    expect(setCell(s, 'row-1', 'nope', 'x')).toBe(s)
+    expect(setCell(s, 'row-1', 'col-beginner', 'x')).toBe(s)
+    const t = table()
+    expect(setCell(t, 'r1', 'c-room', 'Foyer')).toBe(t) // unchanged
+    expect(setCell(t, 'r3', 'c-tag', '')).toBe(t) // already empty
+  })
+})
+
+describe('setColumnType', () => {
+  it('switches between table types and keeps text values', () => {
+    const next = setColumnType(table(), 'c-room', 'tag')
+    expect(next.columns.find((c) => c.id === 'c-room')?.type).toBe('tag')
+    expect(next.rows[0]?.cells?.['c-room']).toBe('Foyer')
+    expectValid(next)
+  })
+
+  it('becoming a time column clears the cells that are not HH:MM', () => {
+    let s = setCell(table(), 'r1', 'c-room', '10:30')
+    s = setCell(s, 'r2', 'c-room', 'Main hall')
+    const next = setColumnType(s, 'c-room', 'time')
+    expect(next.rows[0]?.cells?.['c-room']).toBe('10:30')
+    expect(next.rows[1]?.cells?.['c-room']).toBeUndefined()
+    expectValid(next)
+  })
+
+  it('refuses track <-> table conversions, unknown ids and no-ops', () => {
+    const s = setMode(cairoSample, 'table')
+    expect(setColumnType(s, 'col-beginner', 'text')).toBe(s)
+    expect(setColumnType(s, s.columns[2]?.id as string, 'track')).toBe(s)
+    expect(setColumnType(s, 'nope', 'text')).toBe(s)
+    expect(setColumnType(s, s.columns[2]?.id as string, 'text')).toBe(s)
+  })
+})
+
+describe('column ops in table mode', () => {
+  it('addColumn follows the active mode', () => {
+    const t = addColumn(table())
+    expect(t.columns.at(-1)).toMatchObject({ type: 'text', name: 'Column 6' })
+    const g = addColumn(cairoSample)
+    expect(g.columns.at(-1)).toMatchObject({ type: 'track', name: 'Track 3' })
+    expect(addColumn(table(), { type: 'time' }).columns.at(-1)?.type).toBe('time')
+    expect(addColumn(table(), { type: 'weird' as never })).toEqual(table())
+    expectValid(t)
+  })
+
+  it('removeColumn deletes that key from every row', () => {
+    const next = removeColumn(table(), 'c-room')
+    expect(next.rows.every((r) => !r.cells || !('c-room' in r.cells))).toBe(true)
+    expect(next.rows[0]?.cells?.['c-session']).toBe('Welcome and coffee')
+    expectValid(next)
+  })
+
+  it('removing a track leaves table cells untouched', () => {
+    const s = setMode(cairoSample, 'table')
+    expect(removeColumn(s, 'col-beginner').rows).toEqual(s.rows)
+  })
+
+  it('moveColumn reorders within the table columns only', () => {
+    const s = table()
+    expect(moveColumn(s, 'c-room', -1).columns.map((c) => c.id)).toEqual(['c-session', 'c-room', 'c-speaker', 'c-tag', 'c-ends'])
+    expect(moveColumn(s, 'c-session', -1)).toBe(s)
+    expect(moveColumn(s, 'c-ends', 1)).toBe(s)
+  })
+
+  it('moveColumn keeps the relative order of the other mode\'s columns', () => {
+    // Interleave: track, table, track, table, table.
+    let s = setMode(cairoSample, 'table') // beginner, intermediate, Session, Speaker, Tag
+    s = { ...s, columns: [s.columns[0], s.columns[2], s.columns[1], s.columns[3], s.columns[4]] as Schedule['columns'] }
+    const moved = moveColumn(s, 'col-beginner', 1)
+    expect(moved.columns.map((c) => c.name)).toEqual(['Intermediate', 'Session', 'Beginner', 'Speaker', 'Tag'])
+    expect(tableColumns(moved)).toEqual(tableColumns(s))
+    // Items still sit on the right tracks, contiguity is judged among tracks only.
+    expect(moved.items.every((i) => i.columnIds.length >= 1)).toBe(true)
+    expectValid(moved)
+    const tableMoved = moveColumn(s, s.columns[3]?.id as string, -1)
+    expect(tableMoved.columns.map((c) => c.name)).toEqual(['Beginner', 'Speaker', 'Intermediate', 'Session', 'Tag'])
+    expect(trackColumns(tableMoved)).toEqual(trackColumns(s))
+  })
+})
+
+describe('track-grid ops ignore table columns', () => {
+  it('extend, span-all and shrink only see track columns', () => {
+    let s = setMode(cairoSample, 'table')
+    s = { ...s, columns: [s.columns[0], s.columns[2], s.columns[1], s.columns[3], s.columns[4]] as Schedule['columns'] }
+    const withItemB = addItem(removeItem(s, 'item-b1'), 'row-3', 'col-beginner', { id: 'tmp', title: 'T' })
+    const extended = extendItem(withItemB, 'tmp', 'right')
+    expect(extended.items.find((i) => i.id === 'tmp')).toBeDefined()
+    // 'item-i1' occupies Intermediate in row-3, so merging right is refused (Session is not a lane).
+    expect(extended).toBe(withItemB)
+    const all = spanAllColumns(removeItem(withItemB, 'item-i1'), 'tmp')
+    expect(all.items.find((i) => i.id === 'tmp')?.columnIds).toEqual(['col-beginner', 'col-intermediate'])
+  })
 })

@@ -394,4 +394,149 @@ describe('Editor', () => {
       }
     })
   })
+
+  describe('table mode', () => {
+    async function openTable() {
+      const user = userEvent.setup()
+      render(<App />)
+      await user.click(screen.getByRole('button', { name: 'Table' }))
+      return user
+    }
+
+    it('the mode switch shows the table editor and creates Session, Speaker and Tag columns', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      const grid = screen.getByRole('button', { name: 'Track grid' })
+      expect(grid).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('heading', { name: 'Grid' })).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Table' }))
+      expect(screen.getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true')
+      expect(grid).toHaveAttribute('aria-pressed', 'false')
+      expect(screen.getByRole('heading', { name: 'Table' })).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: 'Grid' })).not.toBeInTheDocument()
+      expect(screen.getByTestId('summary-mode')).toHaveTextContent('table')
+      expect(count('columns')).toBe(3)
+      expect(['Column 1 name', 'Column 2 name', 'Column 3 name'].map((l) => (screen.getByLabelText(l) as HTMLInputElement).value)).toEqual([
+        'Session',
+        'Speaker',
+        'Tag',
+      ])
+      expect(preview()).toContain('<table class="sched">')
+      expect(preview()).not.toContain('class="agenda"')
+    })
+
+    it('editing a cell updates the preview', async () => {
+      const user = await openTable()
+      await user.type(screen.getByLabelText('Session for row 09:00'), 'Opening talk')
+      expect(preview()).toContain('Opening talk')
+      await user.clear(screen.getByLabelText('Session for row 09:00'))
+      expect(preview()).not.toContain('Opening talk')
+    })
+
+    it('person cells use a speaker list and match speakers case-insensitively', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      await user.click(screen.getByRole('button', { name: 'Load sample' }))
+      await user.click(screen.getByRole('button', { name: 'Table' }))
+      const person = screen.getByLabelText('Speaker for row 13:30')
+      expect(person).toHaveAttribute('list')
+      expect(document.getElementById(person.getAttribute('list') ?? '')?.querySelectorAll('option')).toHaveLength(8)
+      await user.type(person, 'dr. asma MERABET')
+      expect(preview()).toContain('<span class="who"><span class="av"')
+      expect(preview()).toContain('Dr. Asma Merabet')
+    })
+
+    it('tag cells become chips', async () => {
+      const user = await openTable()
+      const tag = screen.getByLabelText('Tag for row 09:00')
+      expect(tag).toHaveAttribute('placeholder', 'comma-separated')
+      await user.type(tag, 'Design, Q&A')
+      expect(preview()).toContain('<span class="tags"><span class="chip"')
+      expect(preview()).toContain('>Design</span>')
+      expect(preview()).toContain('>Q&amp;A</span>')
+    })
+
+    it('a type change reshapes the column: time input, colour for tags, text kept otherwise', async () => {
+      const user = await openTable()
+      await user.click(screen.getByRole('button', { name: '+ Add column' }))
+      expect((screen.getByLabelText('Column 4 name') as HTMLInputElement).value).toBe('Column 4')
+      expect(screen.getByLabelText('Column 4 type')).toHaveValue('text')
+      expect(screen.queryByLabelText('Column 4 color')).not.toBeInTheDocument()
+      await user.type(screen.getByLabelText('Column 4 for row 09:00'), 'Main hall')
+      expect(preview()).toContain('Main hall')
+
+      await user.selectOptions(screen.getByLabelText('Column 4 type'), 'tag')
+      expect(screen.getByLabelText('Column 4 color')).toBeInTheDocument()
+      expect(preview()).toContain('class="chip" style="--c:')
+
+      await user.selectOptions(screen.getByLabelText('Column 4 type'), 'time')
+      expect(preview()).not.toContain('Main hall') // not HH:MM, so it was cleared
+      const time = screen.getByLabelText('Column 4 for row 09:00')
+      expect(time).toHaveAttribute('type', 'time')
+      fireEvent.change(time, { target: { value: '10:30' } })
+      expect(preview()).toContain('td data-label="Column 4" class="n">10:30</td>')
+    })
+
+    it('add column, move and remove work on the table columns', async () => {
+      const user = await openTable()
+      await user.click(screen.getByRole('button', { name: 'Move column 2 up' }))
+      expect(['Column 1 name', 'Column 2 name'].map((l) => (screen.getByLabelText(l) as HTMLInputElement).value)).toEqual(['Speaker', 'Session'])
+      await user.type(screen.getByLabelText('Session for row 09:00'), 'Keep?')
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      await user.click(screen.getByRole('button', { name: 'Remove column 2' }))
+      expect(confirm).toHaveBeenCalledTimes(1)
+      expect(count('columns')).toBe(3)
+      confirm.mockReturnValue(true)
+      await user.click(screen.getByRole('button', { name: 'Remove column 2' }))
+      expect(count('columns')).toBe(2)
+      expect(preview()).not.toContain('Keep?')
+      confirm.mockRestore()
+    })
+
+    it('rows work like in the grid: add, insert, times and notes', async () => {
+      const user = await openTable()
+      await user.click(screen.getByRole('button', { name: '+ Add row' }))
+      expect(count('rows')).toBe(2)
+      expect(screen.getByLabelText('Session for row 10:00')).toBeInTheDocument()
+      await user.type(screen.getByLabelText('Row 1 note'), 'Bring a laptop')
+      expect(preview()).toContain('<tr class="note"')
+      expect(preview()).toContain('Bring a laptop')
+      const start = screen.getByLabelText('Row 1 start')
+      await user.clear(start)
+      await user.type(start, '09:15')
+      expect(screen.getByLabelText('Session for row 09:15')).toBeInTheDocument()
+    })
+
+    it('switching back to the grid keeps items and cells, and does not duplicate columns', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      await user.click(screen.getByRole('button', { name: 'Load sample' }))
+      await user.click(screen.getByRole('button', { name: 'Table' }))
+      await user.type(screen.getByLabelText('Session for row 13:30'), 'Kept cell')
+      await user.click(screen.getByRole('button', { name: 'Track grid' }))
+      expect(count('items')).toBe(12)
+      expect(count('columns')).toBe(2)
+      expect(preview()).toContain('Build with Gemma 4')
+      expect(preview()).not.toContain('Kept cell')
+      await user.click(screen.getByRole('button', { name: 'Table' }))
+      expect(screen.getByLabelText('Session for row 13:30')).toHaveValue('Kept cell')
+      expect(count('columns')).toBe(3)
+    })
+
+    it('right-to-left languages mirror the table and use Arabic labels', async () => {
+      const user = await openTable()
+      await user.selectOptions(screen.getByLabelText('Language'), 'ar-EG')
+      expect(preview()).toContain('<html lang="ar-EG" dir="rtl"')
+      expect(preview()).toContain('<th scope="col">الوقت</th>')
+      await user.type(screen.getByLabelText('Session for row 09:00'), 'جلسة الافتتاح')
+      expect(preview()).toContain('جلسة الافتتاح')
+    })
+
+    it('every free-text cell input is dir="auto"', async () => {
+      await openTable()
+      expect(screen.getByLabelText('Session for row 09:00')).toHaveAttribute('dir', 'auto')
+      expect(screen.getByLabelText('Speaker for row 09:00')).toHaveAttribute('dir', 'auto')
+      expect(screen.getByLabelText('Tag for row 09:00')).toHaveAttribute('dir', 'auto')
+    })
+  })
 })

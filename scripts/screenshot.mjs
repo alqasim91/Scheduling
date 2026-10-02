@@ -7,6 +7,8 @@ import { chromium } from 'playwright'
 import { embedFonts } from '../src/export/embedFonts.ts'
 import { buildExportHtml } from '../src/export/exportHtml.ts'
 import { rtlDemo } from '../src/render/__fixtures__/rtlDemo.ts'
+import { tableDemo } from '../src/render/__fixtures__/tableDemo.ts'
+import { tableDemoRtl } from '../src/render/__fixtures__/tableDemoRtl.ts'
 import { renderDocument } from '../src/render/renderAgenda.ts'
 import { cairoSample } from '../src/samples/cairo.ts'
 
@@ -41,6 +43,9 @@ const targets = [
     viewports: [desktop, mobile],
   },
   { name: 'rendered-rtl', file: write('rtl-demo.html', renderDocument(rtlDemo)), viewports: [desktop, mobile] },
+  { name: 'table', file: write('table.html', renderDocument(tableDemo)), viewports: [desktop, mobile] },
+  { name: 'table-dark', file: write('table-dark.html', renderDocument(tableDemo, { forceTheme: 'dark' })), viewports: [desktop] },
+  { name: 'table-rtl', file: write('table-rtl.html', renderDocument(tableDemoRtl)), viewports: [desktop] },
   {
     name: 'rendered-motion',
     file: write('cairo-motion.html', renderDocument(motionSample)),
@@ -105,6 +110,8 @@ try {
   for (const [name, schedule] of [
     ['cairo', cairoSample],
     ['rtl', rtlDemo],
+    ['table', tableDemo],
+    ['table-rtl', tableDemoRtl],
   ]) {
     const embedded = await embedFonts(schedule, (url) => fetch(url, { signal: AbortSignal.timeout(10000) }))
     const fontCss = 'css' in embedded ? embedded.css : undefined

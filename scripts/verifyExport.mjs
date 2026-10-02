@@ -9,12 +9,19 @@ import { pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
 import { embedFonts } from '../src/export/embedFonts.ts'
 import { buildExportHtml } from '../src/export/exportHtml.ts'
+import { JSDOM } from 'jsdom'
 import { rtlDemo } from '../src/render/__fixtures__/rtlDemo.ts'
+import { tableDemo } from '../src/render/__fixtures__/tableDemo.ts'
+import { tableDemoRtl } from '../src/render/__fixtures__/tableDemoRtl.ts'
+import { importFileText } from '../src/persistence/importFile.ts'
 import { cairoSample } from '../src/samples/cairo.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const outDir = join(root, 'test-results')
 mkdirSync(outDir, { recursive: true })
+
+// The import code uses DOMParser (to read, never run, the file); give Node one.
+globalThis.DOMParser = new JSDOM('').window.DOMParser
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`
 
@@ -96,6 +103,8 @@ try {
   for (const { name, schedule, families, maxPages } of [
     { name: 'cairo', schedule: cairoSample, families: ['Roboto'], maxPages: 1 },
     { name: 'rtl', schedule: rtlDemo, families: ['Cairo', 'Tajawal'], maxPages: 1 },
+    { name: 'table', schedule: tableDemo, families: ['Inter'], maxPages: 1 },
+    { name: 'table-rtl', schedule: tableDemoRtl, families: ['Cairo', 'Tajawal'], maxPages: 1 },
   ]) {
     const fonts = await fontCssFor(schedule)
     const html = buildExportHtml(schedule, { fontCss: fonts.css })
@@ -114,6 +123,10 @@ try {
     assert.deepEqual(csp, [], `${name}: CSP violations`)
     assert.deepEqual(requests, [], `${name}: attempted network requests`)
     assert.deepEqual(JSON.parse(raw), JSON.parse(JSON.stringify(schedule)), `${name}: #schedule-data`)
+    // Re-import: the exported file reads back as the same schedule through the app's own import code.
+    const imported = importFileText(html)
+    assert.ok(imported.ok, `${name}: import failed ${imported.ok ? '' : imported.errors.join('; ')}`)
+    assert.deepEqual(imported.value, schedule, `${name}: import round-trip`)
     if (fonts.css) {
       assert.equal(hasLink, 0, `${name}: google fonts link should be gone`)
       for (const family of families) {
@@ -121,7 +134,11 @@ try {
           faces.some((f) => f.family === family && f.status === 'loaded'),
           `${name}: ${family} not loaded (${JSON.stringify(faces)})`,
         )
-        assert.ok(await page.evaluate((f) => document.fonts.check(`16px "${f}"`), family), `${name}: fonts.check ${family}`)
+        // Weights load lazily, so accept any of the weights the page uses.
+        assert.ok(
+          await page.evaluate((f) => [400, 500, 700].some((w) => document.fonts.check(`${w} 16px "${f}"`)), family),
+          `${name}: fonts.check ${family}`,
+        )
       }
     }
     const pdf = join(outDir, `${name}-export.pdf`)
@@ -154,6 +171,25 @@ try {
     assert.equal(ghostNow, 0, 'now: ghost never marked')
     await page.screenshot({ path: join(outDir, 'cairo-now.png'), fullPage: true })
     report.push(`now: at 14:30 Cairo exactly ${now.map((c) => `"${c.title.slice(0, 24)}…"`).join(' and ')} are marked; keynote and ghost are not`)
+    await context.close()
+  }
+  // Table mode: Thursday 14 May 2026, 11:00 in London (BST, UTC+1) falls inside 10:45-12:00 only.
+  {
+    const file = join(outDir, 'table-export.html')
+    const { context, page, errors } = await openOffline(file, { clock: new Date('2026-05-14T10:00:00Z') })
+    const rows = await page.evaluate(() =>
+      [...document.querySelectorAll('tr.now')].map((r) => ({
+        s: r.getAttribute('data-s'),
+        session: r.querySelector('td[data-label="Session"]')?.textContent,
+        badge: getComputedStyle(r.querySelector('.badge')).display,
+      })),
+    )
+    assert.deepEqual(errors, [], 'table now: console errors')
+    assert.equal(rows.length, 1, `table now: expected exactly 1 live row, got ${JSON.stringify(rows)}`)
+    assert.deepEqual([rows[0].s, rows[0].session], ['645', 'Platform migration deep dive'])
+    assert.notEqual(rows[0].badge, 'none', 'table now: badge visible')
+    await page.screenshot({ path: join(outDir, 'table-now.png'), fullPage: true })
+    report.push('table now: at 11:00 London exactly the 10:45-12:00 row ("Platform migration deep dive") is marked')
     await context.close()
   }
 } catch (error) {

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { buildExportHtml } from '../export/exportHtml.ts'
 import { createEmptySchedule } from '../model/defaults.ts'
 import { rtlDemo } from '../render/__fixtures__/rtlDemo.ts'
+import { tableDemo } from '../render/__fixtures__/tableDemo.ts'
+import { tableDemoRtl } from '../render/__fixtures__/tableDemoRtl.ts'
 import { renderDocument } from '../render/renderAgenda.ts'
 import { cairoSample } from '../samples/cairo.ts'
 import { NOT_EXPORTED_ERROR, importFileText } from './importFile.ts'
@@ -9,11 +11,22 @@ import { serializeSchedule } from './json.ts'
 
 describe('importFileText', () => {
   it('round-trips an exported page back to the identical schedule', () => {
-    for (const schedule of [cairoSample, rtlDemo, createEmptySchedule()]) {
+    for (const schedule of [cairoSample, rtlDemo, tableDemo, tableDemoRtl, createEmptySchedule()]) {
       const result = importFileText(buildExportHtml(schedule))
       expect(result.ok).toBe(true)
       if (result.ok) expect(result.value).toEqual(schedule)
     }
+  })
+
+  it('round-trips table mode with cells, hidden grid data and a hostile cell', () => {
+    const mixed = {
+      ...tableDemo,
+      columns: [...tableDemo.columns, { id: 'lane', name: 'Lane', color: '#0b57d0', type: 'track' as const }],
+      items: [{ id: 'it', rowId: 'r1', columnIds: ['lane'], title: 'Kept for grid mode', variant: 'session' as const }],
+      rows: tableDemo.rows.map((r, i) => (i === 0 ? { ...r, cells: { ...r.cells, 'c-room': '</script><script>alert(1)</script>\u2028' } } : r)),
+    }
+    const result = importFileText(buildExportHtml(mixed))
+    expect(result.ok && result.value).toEqual(mixed)
   })
 
   it('round-trips a page with embedded fonts and hostile text', () => {

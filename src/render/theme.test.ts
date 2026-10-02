@@ -230,7 +230,7 @@ describe('print css', () => {
     expect(printBlock).toContain('.lane-head{break-after:avoid}')
     expect(printBlock).toContain('h2{font-size:12pt;break-after:avoid}')
     expect(printBlock).not.toMatch(/\.agenda\{[^}]*break-inside/)
-    expect(printBlock).toContain('.ev .badge{display:none!important}')
+    expect(printBlock).toContain('.badge{display:none!important}')
   })
 
   it('swaps the blue button for a plain "label: url" line', () => {
@@ -249,10 +249,10 @@ describe('print css', () => {
 describe('now badge css and meta line', () => {
   it('ports the reference badge styles using --note', () => {
     const css = agendaCss(cairoSample)
-    expect(css).toContain('.ev .badge{display:none;')
+    expect(css).toContain('.badge{display:none;')
     expect(css).toContain('background:var(--note)')
     expect(css).toContain('.ev.now{box-shadow:0 0 0 2px var(--note)}')
-    expect(css).toContain('.ev.now .badge{display:inline-block}')
+    expect(css).toContain('.ev.now .badge,tr.now .badge{display:inline-block}')
   })
 
   it('applies the mono face to the time range only, not the zone name', () => {

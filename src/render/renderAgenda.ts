@@ -2,7 +2,7 @@
  * Pure HTML renderer for a track-grid schedule. No React, no DOM: it returns strings so the
  * same code drives the live preview iframe and (later) the "Save as HTML" export.
  */
-import type { Item, Schedule, Speaker } from '../model/schema.ts'
+import type { Column, Item, Schedule, Speaker } from '../model/schema.ts'
 import { TIME_PATTERN, toMinutes } from '../model/time.ts'
 import { agendaCss } from './agendaCss.ts'
 import { googleFontsUrl } from './fonts.ts'
@@ -271,11 +271,76 @@ function renderAgendaGrid(schedule: Schedule, ctx: Context, placed: Placed[]): s
   return `<div class="agenda" id="agenda">${out.join('\n')}</div>`
 }
 
-function renderSpeaker(speaker: Speaker): string {
+function avatarHtml(speaker: Speaker, tag: 'div' | 'span'): string {
   const photo = safeDataImage(speaker.photo)
   const background = speaker.color ? cssColor(speaker.color, 'var(--primary)') : 'var(--primary)'
-  const avatar = photo ? `<img src="${escapeHtml(photo)}" alt="">` : escapeHtml(initials(speaker.name))
-  return `<div class="person"><div class="av" style="background:${background}">${avatar}</div><div><b>${escapeHtml(speaker.name)}</b><span>${escapeHtml(speaker.role)}</span></div></div>`
+  const inner = photo ? `<img src="${escapeHtml(photo)}" alt="">` : escapeHtml(initials(speaker.name))
+  return `<${tag} class="av" style="background:${background}">${inner}</${tag}>`
+}
+
+function renderSpeaker(speaker: Speaker): string {
+  return `<div class="person">${avatarHtml(speaker, 'div')}<div><b>${escapeHtml(speaker.name)}</b><span>${escapeHtml(speaker.role)}</span></div></div>`
+}
+
+/* ---------- table mode ---------- */
+
+/** The speaker whose name matches (case-insensitive, trimmed), if any. */
+function findSpeaker(schedule: Schedule, name: string): Speaker | undefined {
+  const key = name.trim().toLowerCase()
+  return key === '' ? undefined : schedule.speakers.find((s) => s.name.trim().toLowerCase() === key)
+}
+
+function renderCellContent(schedule: Schedule, ctx: Context, column: Column, value: string): string {
+  switch (column.type) {
+    case 'time':
+      return escapeHtml(TIME_PATTERN.test(value) ? fmt(ctx, value) : value)
+    case 'person': {
+      const speaker = findSpeaker(schedule, value)
+      if (!speaker) return escapeHtml(value)
+      return `<span class="who">${avatarHtml(speaker, 'span')}<span>${escapeHtml(speaker.name)}</span></span>`
+    }
+    case 'tag': {
+      const color = cssColor(column.color, FALLBACK_COLOR)
+      const tags = value
+        .split(/[,\u060c]/) // Latin or Arabic comma
+        .map((t) => t.trim())
+        .filter((t) => t !== '')
+      return tags.length === 0
+        ? ''
+        : `<span class="tags">${tags.map((t) => `<span class="chip" style="--c:${color}">${escapeHtml(t)}</span>`).join('')}</span>`
+    }
+    default:
+      return escapeHtml(value)
+  }
+}
+
+/** A single flat table: time column first, then the table columns, one body per row. */
+function renderTable(schedule: Schedule, ctx: Context): string {
+  const columns = schedule.columns.filter((c) => c.type !== 'track')
+  const head = [
+    `<th scope="col">${escapeHtml(ctx.labels.time)}</th>`,
+    ...columns.map((c) => `<th scope="col">${escapeHtml(c.name)}</th>`),
+  ].join('')
+
+  const bodies = schedule.rows.map((row) => {
+    const rowStyle = ctx.stagger ? ` style="--i:${Math.min(ctx.cards.next++, 20)}"` : ''
+    const cells = columns
+      .map((c) => {
+        const content = renderCellContent(schedule, ctx, c, row.cells?.[c.id] ?? '')
+        const classes = [content === '' ? 'e' : '', c.type === 'time' ? 'n' : ''].filter(Boolean).join(' ')
+        return `<td data-label="${escapeHtml(c.name)}"${classes ? ` class="${classes}"` : ''}>${content}</td>`
+      })
+      .join('')
+    const time =
+      `<td class="c-time" data-label="${escapeHtml(ctx.labels.time)}"><span class="badge">${escapeHtml(ctx.labels.now)}</span>` +
+      `<b>${escapeHtml(fmt(ctx, row.start))}</b>${escapeHtml(fmt(ctx, row.end))}</td>`
+    const note = row.note?.trim()
+      ? `<tr class="note"${rowStyle}><td colspan="${columns.length + 1}">${renderInlineMarkup(row.note)}</td></tr>`
+      : ''
+    return `<tbody><tr${dataAttr('s', row.start)}${dataAttr('e', row.end)}${rowStyle}>${time}${cells}</tr>${note}</tbody>`
+  })
+
+  return `<div class="tbl"><table class="sched"><thead><tr>${head}</tr></thead>\n${bodies.join('\n')}\n</table></div>`
 }
 
 /* ---------- public API ---------- */
@@ -295,17 +360,27 @@ function makeContext(schedule: Schedule): Context {
 export function renderAgendaBody(schedule: Schedule): string {
   const ctx = makeContext(schedule)
   const { labels } = ctx
-  const placed = placeItems(schedule)
+  const table = schedule.mode === 'table'
+  // Track-grid mode only uses the track columns; table columns share the array but are not lanes.
+  const gridView: Schedule = table ? schedule : { ...schedule, columns: schedule.columns.filter((c) => c.type === 'track') }
+  const placed = table ? [] : placeItems(gridView)
   const note = schedule.event.notes.trim()
   const url = safeHttpUrl(schedule.event.url)
 
   const parts = [renderHeader(schedule, ctx, placed)]
   if (note) parts.push(`<div class="parallel-note"><div>${renderInlineMarkup(schedule.event.notes)}</div></div>`)
-  parts.push(`<section aria-labelledby="ag" class="sec">
+  parts.push(
+    table
+      ? `<section aria-labelledby="ag" class="sec">
     <h2 id="ag">${escapeHtml(labels.agenda)}</h2>
-    ${renderLegend(schedule, labels, placed)}
-    ${renderAgendaGrid(schedule, ctx, placed)}
-  </section>`)
+    ${renderTable(schedule, ctx)}
+  </section>`
+      : `<section aria-labelledby="ag" class="sec">
+    <h2 id="ag">${escapeHtml(labels.agenda)}</h2>
+    ${renderLegend(gridView, labels, placed)}
+    ${renderAgendaGrid(gridView, ctx, placed)}
+  </section>`,
+  )
   if (schedule.speakers.length > 0) {
     parts.push(`<section aria-labelledby="sp" class="sec">
     <h2 id="sp">${escapeHtml(labels.speakers)}</h2>

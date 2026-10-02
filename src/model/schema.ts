@@ -122,6 +122,8 @@ export const LabelsSchema = z.object({
   eventLink: z.string().optional(),
   /** Text of the "happening now" badge in exported pages. */
   now: z.string().optional(),
+  /** Heading of the time column in table mode. */
+  time: z.string().optional(),
 })
 
 export const ColumnSchema = z.object({
@@ -197,6 +199,19 @@ export const ScheduleSchema = z
     schedule.rows.forEach((row, i) => {
       if (TIME_PATTERN.test(row.start) && TIME_PATTERN.test(row.end) && toMinutes(row.start) >= toMinutes(row.end)) {
         fail(['rows', i, 'end'], `Row end (${row.end}) must be after its start (${row.start})`)
+      }
+    })
+
+    // Table cells: only for existing non-track columns, and time columns hold "" or HH:MM.
+    const columnById = new Map(schedule.columns.map((c) => [c.id, c]))
+    schedule.rows.forEach((row, i) => {
+      for (const [columnId, value] of Object.entries(row.cells ?? {})) {
+        const column = columnById.get(columnId)
+        if (!column) fail(['rows', i, 'cells', columnId], `Unknown column "${columnId}"`)
+        else if (column.type === 'track') fail(['rows', i, 'cells', columnId], `Column "${columnId}" is a track; cells belong to table columns`)
+        else if (column.type === 'time' && value !== '' && !TIME_PATTERN.test(value)) {
+          fail(['rows', i, 'cells', columnId], `Expected a time as HH:MM (24h) or empty, got "${value}"`)
+        }
       }
     })
 

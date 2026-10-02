@@ -17,17 +17,18 @@ function motionCss(schedule: Schedule): string {
   const keyframes: string[] = []
   if (preset !== 'none') {
     keyframes.push('@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}')
-    rules.push('.head,.parallel-note,.sec>h2,.legend,.people,.btn{animation:rise .6s ease both}')
+    // In stagger mode the table's rows animate one by one instead of the table as a whole.
+    rules.push(`.head,.parallel-note,.sec>h2,.legend,.people,.btn${preset === 'fade' ? ',.tbl' : ''}{animation:rise .6s ease both}`)
   }
   if (preset === 'stagger') {
-    rules.push('.ev{animation:rise .5s ease both;animation-delay:calc(var(--i,0) * 40ms)}')
+    rules.push('.ev,.sched tbody tr{animation:rise .5s ease both;animation-delay:calc(var(--i,0) * 40ms)}')
   }
   if (logoAnimation) {
     keyframes.push('@keyframes logo-in{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}')
     rules.push('.logo{animation:logo-in .7s ease both}')
   }
   if (rules.length === 0) return ''
-  const selectors = ['.head', '.parallel-note', '.sec>h2', '.legend', '.people', '.btn', '.ev', '.logo'].join(',')
+  const selectors = ['.head', '.parallel-note', '.sec>h2', '.legend', '.people', '.btn', '.ev', '.tbl', '.sched tbody tr', '.logo'].join(',')
   return `
 @media (prefers-reduced-motion:no-preference){
 ${keyframes.join('\n')}
@@ -46,7 +47,7 @@ ${rules.join('\n')}
 export function agendaCss(schedule: Schedule): string {
   const { branding } = schedule
   const { fonts } = branding
-  const lanes = Math.max(schedule.columns.length, 1)
+  const lanes = Math.max(schedule.columns.filter((c) => c.type === 'track').length, 1)
   const template = `56px repeat(${lanes},1fr)`
   const mobileTemplate = `44px repeat(${lanes},1fr)`
   const light = paletteVars(resolveLightColors(branding.colors), 0)
@@ -102,14 +103,30 @@ h2{font-family:var(--display);font-weight:500;font-size:22px;margin:0}
 .ev.track{border-color:var(--t);border-inline-start-width:4px}
 .ev.shared{background:var(--soft);border-style:dashed}
 .ev.key{border-color:var(--accent);border-style:solid;border-inline-start-width:4px}
-.ev .badge{display:none;align-self:flex-start;background:var(--note);color:#1f1f1f;font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px}
+.badge{display:none;align-self:flex-start;background:var(--note);color:#1f1f1f;font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px}
 .ev.now{box-shadow:0 0 0 2px var(--note)}
-.ev.now .badge{display:inline-block}
+.ev.now .badge,tr.now .badge{display:inline-block}
 .ev.ghost{background:transparent;border-color:var(--t);border-style:dashed;border-inline-start-width:4px;color:var(--muted);font-size:14px;justify-content:center}
 .lane-head{gap:10px}
 .lane-head div{font-family:var(--display);font-weight:500;font-size:13px;letter-spacing:.04em;text-transform:uppercase;padding:6px 0;border-bottom:3px solid var(--t);color:var(--t)}
 .small{font-size:13px;color:var(--muted);margin:-4px 0 0;white-space:pre-line;text-align:start}
 
+.tbl{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.sched{width:100%;border-collapse:collapse;font-size:14px}
+.sched th{font-family:var(--display);font-weight:500;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);text-align:start;padding:10px 14px;background:var(--soft);border-bottom:2px solid var(--line)}
+.sched td{padding:10px 14px;vertical-align:top;text-align:start;border-bottom:1px solid var(--line);overflow-wrap:break-word;white-space:pre-line}
+.sched td.n{white-space:nowrap;font-variant-numeric:tabular-nums}
+.sched tbody:last-child td{border-bottom:0}
+.sched tbody:nth-of-type(even) td{background:color-mix(in srgb,var(--muted) 4%,var(--card))}
+.sched td.c-time{white-space:nowrap;font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums;color:var(--muted);line-height:1.3}
+.sched td.c-time b{display:block;color:var(--fg);font-weight:500;font-size:14px}
+.sched tr.note td{padding-top:0;font-size:13px;color:var(--muted)}
+.sched tr.now td{background:color-mix(in srgb,var(--note) 16%,var(--card))}
+.sched .badge{margin-block-end:4px}
+.sched .who{display:inline-flex;align-items:center;gap:8px}
+.sched .av{width:28px;height:28px;font-size:11px}
+.sched .tags{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
+.sched .chip{white-space:normal}
 .people{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
 .person{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;gap:12px;align-items:center;min-width:0}
 .av{flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:500;color:#fff;overflow:hidden}
@@ -129,6 +146,19 @@ h2{font-family:var(--display);font-weight:500;font-size:22px;margin:0}
   .lane-head{gap:8px}
   .ev{padding:10px 10px}
   .ev h3{font-size:14px}
+}
+@media (max-width:560px){
+  .sched thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .sched,.sched tbody,.sched tr{display:block}
+  .sched td{display:flex;gap:10px;align-items:baseline;border-bottom:0;padding:4px 14px}
+  .sched td::before{content:attr(data-label);flex:0 0 84px;font-family:var(--display);font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .sched td.e{display:none}
+  .sched td.c-time{display:block;padding-top:10px}
+  .sched td.c-time::before{display:none}
+  .sched tbody{border-bottom:1px solid var(--line);padding-bottom:6px}
+  .sched tbody:last-child{border-bottom:0}
+  .sched tr.note td{display:block}
+  .sched tr.note td::before{display:none}
 }${motionCss(schedule)}
 
 @page{size:A4;margin:12mm}
@@ -167,7 +197,18 @@ h2{font-family:var(--display);font-weight:500;font-size:22px;margin:0}
   .person b{font-size:9pt}
   .person span{font-size:7.5pt}
   .ev,.person,.t,.small{break-inside:avoid}
-  .ev .badge{display:none!important}
+  .tbl{border-radius:8px}
+  .sched{font-size:9pt}
+  .sched th{font-size:7.5pt;padding:3px 8px}
+  .sched td{padding:3px 8px}
+  .sched td.c-time{font-size:8pt}
+  .sched tr.note td{font-size:8pt;padding-top:0}
+  .sched td.c-time b{font-size:9pt}
+  .sched .who{gap:6px}
+  .sched .tags{gap:2px}
+  .sched thead{display:table-header-group}
+  .sched tr,.sched tbody{break-inside:avoid}
+  .badge{display:none!important}
   .ev.now{box-shadow:none}
   .btn{display:none}
   .print-link{display:block;font-size:8.5pt;color:var(--muted);overflow-wrap:anywhere}

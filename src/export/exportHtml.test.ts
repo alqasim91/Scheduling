@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { Schedule } from '../model/schema.ts'
 import { cairoSample } from '../samples/cairo.ts'
 import { rtlDemo } from '../render/__fixtures__/rtlDemo.ts'
+import { tableDemo } from '../render/__fixtures__/tableDemo.ts'
+import { tableDemoRtl } from '../render/__fixtures__/tableDemoRtl.ts'
 import { CSP, buildExportHtml, jsonForScript } from './exportHtml.ts'
 
 const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html')
@@ -47,6 +49,14 @@ describe('buildExportHtml', () => {
     expect(parse(buildExportHtml({ ...cairoSample, labels: { now: 'Live' } })).querySelector('.badge')?.textContent).toBe('Live')
   })
 
+  it('exports table mode with its table, data, CSP and a hidden badge per row', () => {
+    const tableDoc = parse(buildExportHtml(tableDemo))
+    expect(tableDoc.querySelectorAll('table.sched tbody tr[data-s]')).toHaveLength(8)
+    expect(tableDoc.querySelectorAll('tr[data-s] .badge')).toHaveLength(8)
+    expect(tableDoc.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content')).toBe(CSP)
+    expect(tableDoc.getElementById('schedule-data')).not.toBeNull()
+  })
+
   it('inlines fontCss instead of the Google Fonts link', () => {
     const css = "@font-face{font-family:'Roboto';src:url(data:font/woff2;base64,AAAA) format('woff2')}"
     const withFonts = buildExportHtml(cairoSample, { fontCss: css })
@@ -60,7 +70,7 @@ describe('buildExportHtml', () => {
 
 describe('embedded schedule data', () => {
   it('round-trips exactly', () => {
-    for (const schedule of [cairoSample, rtlDemo]) expect(dataOf(buildExportHtml(schedule))).toEqual(schedule)
+    for (const schedule of [cairoSample, rtlDemo, tableDemo, tableDemoRtl]) expect(dataOf(buildExportHtml(schedule))).toEqual(schedule)
   })
 
   it('cannot be broken out of by a hostile title', () => {

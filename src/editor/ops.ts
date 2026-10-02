@@ -34,6 +34,18 @@ function indexMap(entries: readonly { id: string }[]): Map<string, number> {
   return map
 }
 
+const isTrack = (column: Column): boolean => column.type === 'track'
+
+/** Columns used by track-grid mode. Items only ever reference these. */
+export function trackColumns(schedule: Pick<Schedule, 'columns'>): Column[] {
+  return schedule.columns.filter(isTrack)
+}
+
+/** Columns used by table mode (text, time, person, tag). */
+export function tableColumns(schedule: Pick<Schedule, 'columns'>): Column[] {
+  return schedule.columns.filter((c) => !isTrack(c))
+}
+
 function omitKey<T extends object, K extends keyof T>(source: T, key: K): Omit<T, K> {
   const copy = { ...source }
   delete copy[key]
@@ -133,7 +145,7 @@ function replaceItem(schedule: Schedule, updated: Item): Schedule {
 /** Reduce rowSpans so every item fits the rows that exist and overlaps nothing. */
 function clampSpans(schedule: Schedule): Schedule {
   const rmap = indexMap(schedule.rows)
-  const cmap = indexMap(schedule.columns)
+  const cmap = indexMap(trackColumns(schedule))
   const taken = new Set<string>()
   const footprints = new Map<string, { row: number; cols: number[] }>()
   for (const item of schedule.items) {
@@ -175,33 +187,52 @@ function newRowTimes(previousEnd: string | undefined): { start: string; end: str
 
 /* ---------- columns ---------- */
 
+const COLUMN_TYPES: readonly Column['type'][] = ['track', 'text', 'time', 'person', 'tag']
+const TABLE_TYPES: readonly Column['type'][] = ['text', 'time', 'person', 'tag']
+
+/** Copy of a row without the cell for `columnId` (and without `cells` when that leaves it empty). */
+function withoutCell(row: Row, columnId: string): Row {
+  if (!row.cells || !(columnId in row.cells)) return row
+  const cells = { ...row.cells }
+  delete cells[columnId]
+  return Object.keys(cells).length > 0 ? { ...row, cells } : omitKey(row, 'cells')
+}
+
+/**
+ * Add a column. Without an explicit `type` it is a track in track-grid mode and a text column
+ * in table mode.
+ */
 export function addColumn(
   schedule: Schedule,
-  init: { id?: string; name?: string; color?: string } = {},
+  init: { id?: string; name?: string; color?: string; type?: Column['type'] } = {},
 ): Schedule {
   const id = init.id ?? newId('col')
   if (schedule.columns.some((c) => c.id === id)) return schedule
   if (init.color !== undefined && !HEX_COLOR.test(init.color)) return schedule
+  const type = init.type ?? (schedule.mode === 'table' ? 'text' : 'track')
+  if (!COLUMN_TYPES.includes(type)) return schedule
+  const sameKind = schedule.columns.filter((c) => isTrack(c) === (type === 'track')).length
   const column: Column = {
     id,
-    name: init.name ?? `Track ${schedule.columns.length + 1}`,
-    color: init.color ?? (COLUMN_PALETTE[schedule.columns.length % COLUMN_PALETTE.length] as string),
-    type: 'track',
+    name: init.name ?? (type === 'track' ? `Track ${sameKind + 1}` : `Column ${sameKind + 1}`),
+    color: init.color ?? (COLUMN_PALETTE[sameKind % COLUMN_PALETTE.length] as string),
+    type,
   }
   return { ...schedule, columns: [...schedule.columns, column] }
 }
 
+/** Remove a column: its items lose it (and may be deleted), and its table cells are dropped. */
 export function removeColumn(schedule: Schedule, id: string): Schedule {
   if (!schedule.columns.some((c) => c.id === id)) return schedule
   const columns = schedule.columns.filter((c) => c.id !== id)
-  const cmap = indexMap(columns)
+  const cmap = indexMap(columns.filter(isTrack))
   const items: Item[] = []
   for (const item of schedule.items) {
     const remaining = item.columnIds.filter((c) => c !== id && cmap.has(c))
     if (remaining.length === 0) continue
     items.push({ ...item, columnIds: contiguousRun(remaining, cmap, remaining[0] as string) })
   }
-  return { ...schedule, columns, items }
+  return { ...schedule, columns, rows: schedule.rows.map((r) => withoutCell(r, id)), items }
 }
 
 export function renameColumn(schedule: Schedule, id: string, name: string): Schedule {
@@ -215,20 +246,88 @@ export function setColumnColor(schedule: Schedule, id: string, color: string): S
   return { ...schedule, columns: schedule.columns.map((c) => (c.id === id ? { ...c, color } : c)) }
 }
 
+/** Move a column one place within its own kind (tracks among tracks, table columns among table columns). */
 export function moveColumn(schedule: Schedule, id: string, direction: Direction): Schedule {
   const from = schedule.columns.findIndex((c) => c.id === id)
-  const to = from + direction
-  if (from < 0 || to < 0 || to >= schedule.columns.length) return schedule
+  if (from < 0) return schedule
+  const track = isTrack(schedule.columns[from] as Column)
+  const sameKind = schedule.columns.flatMap((c, i) => (isTrack(c) === track ? [i] : []))
+  const position = sameKind.indexOf(from)
+  const swapWith = sameKind[position + direction]
+  if (swapWith === undefined) return schedule
   const columns = [...schedule.columns]
   const moved = columns[from] as Column
-  columns[from] = columns[to] as Column
-  columns[to] = moved
-  const cmap = indexMap(columns)
+  columns[from] = columns[swapWith] as Column
+  columns[swapWith] = moved
+  if (!track) return { ...schedule, columns }
+  const cmap = indexMap(columns.filter(isTrack))
   const items = schedule.items.map((item) => {
     const anchor = item.columnIds[0] as string
     return { ...item, columnIds: contiguousRun(item.columnIds, cmap, anchor) }
   })
   return { ...schedule, columns, items }
+}
+
+/**
+ * Switch between track-grid and table. Nothing is deleted: when the target mode has no columns
+ * yet, they are created (Session/Speaker/Tag for a table, two tracks for a grid).
+ */
+export function setMode(schedule: Schedule, mode: Schedule['mode']): Schedule {
+  if (schedule.mode === mode) return schedule
+  let columns = schedule.columns
+  if (mode === 'table' && tableColumns(schedule).length === 0) {
+    columns = [
+      ...columns,
+      { id: newId('col'), name: 'Session', color: '#444746', type: 'text' },
+      { id: newId('col'), name: 'Speaker', color: '#0b57d0', type: 'person' },
+      { id: newId('col'), name: 'Tag', color: '#188038', type: 'tag' },
+    ]
+  }
+  if (mode === 'track-grid' && trackColumns(schedule).length === 0) {
+    columns = [
+      ...columns,
+      { id: newId('col'), name: 'Track 1', color: '#188038', type: 'track' },
+      { id: newId('col'), name: 'Track 2', color: '#0b57d0', type: 'track' },
+    ]
+  }
+  return { ...schedule, mode, columns }
+}
+
+/** Set (or clear, with "") a table cell. Time columns only accept HH:MM. */
+export function setCell(schedule: Schedule, rowId: string, columnId: string, value: string): Schedule {
+  const column = schedule.columns.find((c) => c.id === columnId)
+  if (!column || isTrack(column)) return schedule
+  const row = schedule.rows.find((r) => r.id === rowId)
+  if (!row) return schedule
+  if (column.type === 'time' && value !== '' && !isTime(value)) return schedule
+  const current = row.cells?.[columnId]
+  let next: Row
+  if (value === '') {
+    if (current === undefined) return schedule
+    next = withoutCell(row, columnId)
+  } else {
+    if (current === value) return schedule
+    next = { ...row, cells: { ...row.cells, [columnId]: value } }
+  }
+  return { ...schedule, rows: schedule.rows.map((r) => (r.id === rowId ? next : r)) }
+}
+
+/**
+ * Change a table column's type (text, time, person, tag). Becoming a time column clears cells
+ * that are not HH:MM. Tracks and table columns cannot be converted into each other.
+ */
+export function setColumnType(schedule: Schedule, columnId: string, type: Column['type']): Schedule {
+  const column = schedule.columns.find((c) => c.id === columnId)
+  if (!column || isTrack(column) || !TABLE_TYPES.includes(type) || column.type === type) return schedule
+  const columns = schedule.columns.map((c) => (c.id === columnId ? { ...c, type } : c))
+  const rows =
+    type === 'time'
+      ? schedule.rows.map((r) => {
+          const value = r.cells?.[columnId]
+          return value !== undefined && !isTime(value) ? withoutCell(r, columnId) : r
+        })
+      : schedule.rows
+  return { ...schedule, columns, rows }
 }
 
 /* ---------- rows ---------- */
@@ -315,7 +414,7 @@ export type ItemInit = Partial<Pick<Item, 'id' | 'title' | 'speaker' | 'tag' | '
 /** Place a new single-column item in a free cell. */
 export function addItem(schedule: Schedule, rowId: string, colId: string, partial: ItemInit = {}): Schedule {
   const rowIndex = schedule.rows.findIndex((r) => r.id === rowId)
-  if (rowIndex < 0 || !schedule.columns.some((c) => c.id === colId)) return schedule
+  if (rowIndex < 0 || !schedule.columns.some((c) => c.id === colId && isTrack(c))) return schedule
 
   const id = partial.id ?? newId('item')
   if (schedule.items.some((i) => i.id === id)) return schedule
@@ -372,14 +471,15 @@ export function extendItem(schedule: Schedule, id: string, side: Side): Schedule
   const found = findItem(schedule, id)
   if (!found) return schedule
   const { item, rowIndex } = found
-  const cmap = indexMap(schedule.columns)
+  const tracks = trackColumns(schedule)
+  const cmap = indexMap(tracks)
   const indices = columnIndices(item, cmap)
   if (indices.length === 0) return schedule
   const target = side === 'left' ? (indices[0] as number) - 1 : (indices[indices.length - 1] as number) + 1
-  const targetColumn = schedule.columns[target]
+  const targetColumn = tracks[target]
   if (!targetColumn) return schedule
   if (!cellsFree(schedule, coveredRows(item, rowIndex, schedule.rows.length), [targetColumn.id], id)) return schedule
-  const columnIds = [...indices, target].sort((a, b) => a - b).map((i) => (schedule.columns[i] as Column).id)
+  const columnIds = [...indices, target].sort((a, b) => a - b).map((i) => (tracks[i] as Column).id)
   return replaceItem(schedule, { ...item, columnIds })
 }
 
@@ -387,18 +487,18 @@ export function extendItem(schedule: Schedule, id: string, side: Side): Schedule
 export function shrinkItem(schedule: Schedule, id: string, side: Side): Schedule {
   const item = schedule.items.find((i) => i.id === id)
   if (!item) return schedule
-  const cmap = indexMap(schedule.columns)
-  const indices = columnIndices(item, cmap)
+  const tracks = trackColumns(schedule)
+  const indices = columnIndices(item, indexMap(tracks))
   if (indices.length < 2) return schedule
   const kept = side === 'left' ? indices.slice(1) : indices.slice(0, -1)
-  return replaceItem(schedule, { ...item, columnIds: kept.map((i) => (schedule.columns[i] as Column).id) })
+  return replaceItem(schedule, { ...item, columnIds: kept.map((i) => (tracks[i] as Column).id) })
 }
 
 export function spanAllColumns(schedule: Schedule, id: string): Schedule {
   const found = findItem(schedule, id)
-  if (!found || schedule.columns.length === 0) return schedule
+  const all = trackColumns(schedule).map((c) => c.id)
+  if (!found || all.length === 0) return schedule
   const { item, rowIndex } = found
-  const all = schedule.columns.map((c) => c.id)
   if (all.length === item.columnIds.length && all.every((c) => item.columnIds.includes(c))) return schedule
   if (!cellsFree(schedule, coveredRows(item, rowIndex, schedule.rows.length), all, id)) return schedule
   return replaceItem(schedule, { ...item, columnIds: all })

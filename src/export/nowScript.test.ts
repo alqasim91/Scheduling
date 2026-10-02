@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cairoSample } from '../samples/cairo.ts'
+import { tableDemo } from '../render/__fixtures__/tableDemo.ts'
 import { buildExportHtml } from './exportHtml.ts'
 import { NOW_SCRIPT } from './nowScript.ts'
 
@@ -13,6 +14,7 @@ function load(html: string) {
   document.body.appendChild(data)
 }
 
+const nowRows = () => [...document.querySelectorAll('tr.now')].map((e) => e.getAttribute('data-s'))
 const nowTitles = () => [...document.querySelectorAll('.ev.now')].map((e) => e.querySelector('h3')?.textContent)
 const run = () => new Function(NOW_SCRIPT)()
 
@@ -93,5 +95,36 @@ describe('NOW_SCRIPT', () => {
     expect(() => run()).not.toThrow()
     document.getElementById('schedule-data')!.remove()
     expect(() => run()).not.toThrow()
+  })
+})
+
+describe('NOW_SCRIPT in table mode', () => {
+  beforeEach(() => {
+    load(buildExportHtml(tableDemo))
+  })
+
+  it('marks exactly the table row running now, with its badge, in the event timezone', () => {
+    vi.setSystemTime(new Date('2026-05-14T10:00:00Z')) // 11:00 BST: Platform migration, 10:45-12:00
+    run()
+    expect(nowRows()).toEqual(['645'])
+    expect(document.querySelector('tr.now .badge')?.textContent).toBe('Now')
+    expect(document.querySelector('tr.now td[data-label="Session"]')?.textContent).toBe('Platform migration deep dive')
+  })
+
+  it('treats the end as exclusive and ignores note rows', () => {
+    vi.setSystemTime(new Date('2026-05-14T09:30:00Z')) // 10:30 BST: roadmap ended, break started
+    run()
+    expect(nowRows()).toEqual(['630'])
+    expect(document.querySelector('tr.note.now')).toBeNull()
+  })
+
+  it('marks nothing on another day, and updates every minute', () => {
+    vi.setSystemTime(new Date('2026-05-15T10:00:00Z'))
+    run()
+    expect(nowRows()).toEqual([])
+    vi.setSystemTime(new Date('2026-05-14T07:59:00Z')) // 08:59 BST
+    expect(nowRows()).toEqual([])
+    vi.advanceTimersByTime(60_000) // the timer fires at 09:00 BST: the first row starts
+    expect(nowRows()).toEqual(['540'])
   })
 })

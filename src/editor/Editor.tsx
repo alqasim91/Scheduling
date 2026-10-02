@@ -4,6 +4,8 @@ import { BrandingPanel } from './BrandingPanel.tsx'
 import { ColumnsPanel } from './ColumnsPanel.tsx'
 import { EventPanel } from './EventPanel.tsx'
 import { GridPanel } from './GridPanel.tsx'
+import { TablePanel } from './TablePanel.tsx'
+import { setMode, tableColumns, trackColumns } from './ops.ts'
 import { Preview } from './Preview.tsx'
 import type { Apply } from './types.ts'
 
@@ -23,6 +25,19 @@ export function Editor({ schedule, setSchedule }: Props) {
   return (
     <div className="editor">
       <div className="editor__panels">
+        <div className="mode" role="group" aria-label="Mode">
+          <span>Mode</span>
+          {(
+            [
+              ['track-grid', 'Track grid'],
+              ['table', 'Table'],
+            ] as const
+          ).map(([mode, label]) => (
+            <button key={mode} type="button" aria-pressed={schedule.mode === mode} onClick={() => apply((s) => setMode(s, mode))}>
+              {label}
+            </button>
+          ))}
+        </div>
         <dl className="summary" aria-label="Schedule summary">
           <div>
             <dt>Mode</dt>
@@ -30,7 +45,7 @@ export function Editor({ schedule, setSchedule }: Props) {
           </div>
           <div>
             <dt>Columns</dt>
-            <dd data-testid="summary-columns">{schedule.columns.length}</dd>
+            <dd data-testid="summary-columns">{(schedule.mode === 'table' ? tableColumns(schedule) : trackColumns(schedule)).length}</dd>
           </div>
           <div>
             <dt>Rows</dt>
@@ -43,7 +58,11 @@ export function Editor({ schedule, setSchedule }: Props) {
         </dl>
         <EventPanel schedule={schedule} apply={apply} />
         <ColumnsPanel schedule={schedule} apply={apply} />
-        <GridPanel schedule={schedule} apply={apply} />
+        {schedule.mode === 'table' ? (
+          <TablePanel schedule={schedule} apply={apply} />
+        ) : (
+          <GridPanel schedule={schedule} apply={apply} />
+        )}
         <BrandingPanel schedule={schedule} apply={apply} />
       </div>
       <div className="editor__preview">

@@ -1,0 +1,116 @@
+import type { Schedule } from '../../model/schema.ts'
+
+/** A generic table-mode event: one flat table, a person column that matches speakers, tags, a time column. */
+export const tableDemo: Schedule = {
+  version: 1,
+  event: {
+    title: 'Product Team Offsite',
+    titleHighlight: 'Offsite',
+    date: '2026-05-14',
+    timezone: 'Europe/London',
+    venue: 'The Warehouse, Riverside Quay',
+    status: 'Invitation only',
+    notes: '**Lunch is provided.** Please tell us about dietary needs before Monday.',
+    url: 'https://example.org/offsite',
+  },
+  branding: {
+    logo: null,
+    colors: {
+      primary: '#3949ab',
+      accent: '#e65100',
+      background: '#f7f8fc',
+      surface: '#ffffff',
+      text: '#1b1d29',
+      muted: '#4b4f63',
+      line: '#cfd3e3',
+      note: '#f9ab00',
+    },
+    fonts: {
+      display: "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif",
+      body: "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif",
+      mono: 'ui-monospace, Menlo, Consolas, monospace',
+      webFonts: ['Inter'],
+    },
+    theme: 'auto',
+    motion: { preset: 'none', logoAnimation: false },
+  },
+  mode: 'table',
+  columns: [
+    { id: 'c-session', name: 'Session', color: '#4b4f63', type: 'text' },
+    { id: 'c-speaker', name: 'Speaker', color: '#3949ab', type: 'person' },
+    { id: 'c-room', name: 'Room', color: '#4b4f63', type: 'text' },
+    { id: 'c-tag', name: 'Tag', color: '#00897b', type: 'tag' },
+    { id: 'c-ends', name: 'Ends', color: '#4b4f63', type: 'time' },
+  ],
+  rows: [
+    {
+      id: 'r1',
+      start: '09:00',
+      end: '09:30',
+      cells: { 'c-session': 'Welcome and coffee', 'c-speaker': 'Maya Chen', 'c-room': 'Foyer', 'c-tag': 'Social', 'c-ends': '09:30' },
+    },
+    {
+      id: 'r2',
+      start: '09:30',
+      end: '10:30',
+      note: 'Bring your team\u2019s top three priorities.',
+      cells: {
+        'c-session': 'Roadmap review: second-half priorities',
+        'c-speaker': 'Maya Chen',
+        'c-room': 'Main hall',
+        'c-tag': 'Planning, Roadmap',
+        'c-ends': '10:30',
+      },
+    },
+    { id: 'r3', start: '10:30', end: '10:45', cells: { 'c-session': 'Break', 'c-room': 'Foyer' } },
+    {
+      id: 'r4',
+      start: '10:45',
+      end: '12:00',
+      cells: {
+        'c-session': 'Platform migration deep dive',
+        'c-speaker': '  daniel OKAFOR ',
+        'c-room': 'Room A',
+        'c-tag': 'Engineering, Migration, Q&A',
+        'c-ends': '12:00',
+      },
+    },
+    { id: 'r5', start: '12:00', end: '13:00', cells: { 'c-session': 'Lunch', 'c-room': 'Courtyard', 'c-tag': 'Social' } },
+    {
+      id: 'r6',
+      start: '13:00',
+      end: '14:15',
+      cells: {
+        'c-session': 'Design system workshop',
+        'c-speaker': 'Priya Raman',
+        'c-room': 'Room B',
+        'c-tag': 'Design, Workshop',
+        'c-ends': '14:15',
+      },
+    },
+    {
+      id: 'r7',
+      start: '14:15',
+      end: '15:30',
+      cells: {
+        'c-session': 'Customer feedback roundtable',
+        'c-speaker': 'Guest facilitator',
+        'c-room': 'Room A',
+        'c-tag': 'Research',
+        'c-ends': '15:30',
+      },
+    },
+    {
+      id: 'r8',
+      start: '15:30',
+      end: '16:00',
+      cells: { 'c-session': 'Wrap-up and next steps', 'c-speaker': 'Maya Chen', 'c-room': 'Main hall', 'c-tag': 'Planning', 'c-ends': '16:00' },
+    },
+  ],
+  items: [],
+  speakers: [
+    { id: 's1', name: 'Maya Chen', role: 'Head of Product', color: '#3949ab' },
+    { id: 's2', name: 'Daniel Okafor', role: 'Engineering Lead', color: '#00897b' },
+    { id: 's3', name: 'Priya Raman', role: 'Design Lead', color: '#e65100' },
+  ],
+}

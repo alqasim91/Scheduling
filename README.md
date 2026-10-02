@@ -47,6 +47,10 @@ Cross-field rules (ids unique per collection, items point at existing rows and c
 - Motion is CSS only, wrapped in `prefers-reduced-motion: no-preference` and disabled for print. Nothing is emitted when motion is off.
 - `event.locale`, `direction` and `timeFormat` drive `<html lang dir>`, the date and time formatting (`src/render/locale.ts`) and the built-in labels for en, ar and fr (`src/render/labels.ts`). All new schema fields are optional, so existing v1 files stay valid.
 
+### Table mode
+
+`mode: 'table'` renders one flat table: a time column (from `row.start`/`row.end`), then the non-track columns (`text`, `time`, `person`, `tag`) with values in `row.cells[columnId]`. Track-grid mode uses only `type: 'track'` columns and items; both sets live in `columns`, so switching mode (`setMode`) never deletes anything. Person cells that match a speaker name (case-insensitive) show the speaker's avatar; tag cells are comma-separated chips in the column colour; time cells follow the event's locale and 12h/24h setting. On narrow screens each row becomes a card with the column names as labels. The Now badge, motion, RTL, export, import and print work as in grid mode.
+
 ### Export and re-import
 
 - **Save HTML** (`src/export/exportHtml.ts`) writes one file: the `renderDocument` page, the schedule as `<script type="application/json" id="schedule-data">` (with `<`, `>`, `&`, U+2028/9 escaped), a Content-Security-Policy meta, and a small ES5 script (`nowScript.ts`) that adds `now` to the cards running at the current time in the event's timezone. Fonts can be embedded for offline use (`embedFonts.ts` fetches Google Fonts limited to the characters on the page, capped at 3 MB); if that fails the file keeps the Google Fonts link and the editor says why.
@@ -65,5 +69,5 @@ Autosave uses the `localStorage` key `schedule-builder:v1` and is validated the 
 - [x] **M2** Track-grid editor and renderer
 - [x] **M3** Branding, dark theme, motion, locale and RTL
 - [x] **M4** Export PDF/HTML and re-import
-- [ ] **M5** Table mode
+- [x] **M5** Table mode
 - [ ] **M6** Templates

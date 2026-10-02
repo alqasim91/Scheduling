@@ -4,7 +4,7 @@
  * Plain ES5 on purpose (it ships inside a standalone file and must run in old browsers).
  * It reads the event date and timezone from the embedded `#schedule-data` JSON, gets today's
  * date and the minute of the day in that timezone, and, on the event day, adds `now` to every
- * `.ev[data-s]` (not `.ghost`) with start <= now < end. It repeats every 60 seconds and never throws.
+ * `.ev[data-s]` card or table `tr[data-s]` row (not `.ghost`) with start <= now < end. It repeats every 60 seconds and never throws.
  */
 export const NOW_SCRIPT = `(function () {
   function tick() {
@@ -19,7 +19,7 @@ export const NOW_SCRIPT = `(function () {
       for (var i = 0; i < parts.length; i++) o[parts[i].type] = parts[i].value;
       var today = o.year + '-' + o.month + '-' + o.day;
       var minutes = (parseInt(o.hour, 10) % 24) * 60 + parseInt(o.minute, 10);
-      var cards = document.querySelectorAll('.ev[data-s]');
+      var cards = document.querySelectorAll('.ev[data-s], tr[data-s]');
       for (var j = 0; j < cards.length; j++) {
         var card = cards[j];
         var on = today === event.date &&
