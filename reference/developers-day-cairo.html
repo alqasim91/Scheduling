@@ -1,0 +1,195 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Developers Day Cairo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+/* Layout: agenda as time slots; parallel sessions sit side by side in two lanes (Beginner / Intermediate), shared items span both */
+:root{
+  --bg:#f8fafd; --card:#ffffff; --fg:#1f1f1f; --muted:#444746; --line:#c4c7c5;
+  --blue:#0b57d0; --red:#d93025; --yellow:#f9ab00; --green:#188038;
+  --blue-soft:#e8f0fe; --green-soft:#e6f4ea; --yellow-soft:#fef7e0; --red-soft:#fce8e6; --grey-soft:#eef1f6;
+  --display:'Google Sans','Product Sans',Roboto,Arial,sans-serif;
+  --body:Roboto,'Helvetica Neue',Arial,sans-serif;
+  --mono:'Roboto Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#131314; --card:#1e1f20; --fg:#e3e3e3; --muted:#c4c7c5; --line:#444746;
+  --blue:#a8c7fa; --red:#f28b82; --yellow:#fdd663; --green:#81c995;
+  --blue-soft:#0b2a5c; --green-soft:#0f3d1e; --yellow-soft:#3d3100; --red-soft:#4a1a17; --grey-soft:#282a2c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#131314; --card:#1e1f20; --fg:#e3e3e3; --muted:#c4c7c5; --line:#444746;
+  --blue:#a8c7fa; --red:#f28b82; --yellow:#fdd663; --green:#81c995;
+  --blue-soft:#0b2a5c; --green-soft:#0f3d1e; --yellow-soft:#3d3100; --red-soft:#4a1a17; --grey-soft:#282a2c; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);line-height:1.45;padding-inline:16px;padding-block:24px 56px}
+.wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+.dots{display:flex;gap:6px}
+.dots i{width:12px;height:12px;border-radius:50%;display:block}
+.dots i:nth-child(1){background:var(--blue)}.dots i:nth-child(2){background:var(--red)}
+.dots i:nth-child(3){background:var(--yellow)}.dots i:nth-child(4){background:var(--green)}
+.eyebrow{font-family:var(--display);font-weight:500;font-size:14px;letter-spacing:.04em;color:var(--muted);text-transform:uppercase}
+h1{font-family:var(--display);font-weight:500;font-size:clamp(32px,8vw,52px);line-height:1.1;letter-spacing:-.02em;margin:0;text-wrap:balance}
+h1 b{color:var(--blue);font-weight:500}
+h2{font-family:var(--display);font-weight:500;font-size:22px;margin:0}
+.head{display:flex;flex-direction:column;gap:12px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;color:var(--muted);font-size:15px}
+.meta span{display:inline-flex;gap:8px;align-items:center}
+.time{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:14px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--display);font-weight:500;font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:3px 10px;border-radius:999px}
+.chip::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.chip.b{background:var(--green-soft);color:var(--green)}
+.chip.i{background:var(--blue-soft);color:var(--blue)}
+.chip.s{background:var(--grey-soft);color:var(--muted)}
+.parallel-note{background:var(--yellow-soft);border-radius:16px;padding:12px 16px;font-size:14px;display:flex;gap:12px;align-items:flex-start}
+.parallel-note::before{content:"";flex:none;width:4px;align-self:stretch;border-radius:2px;background:var(--yellow)}
+
+.agenda{display:flex;flex-direction:column;gap:12px}
+.slot{display:grid;grid-template-columns:56px 1fr 1fr;gap:8px 10px;align-items:stretch}
+.slot .t{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums;padding-top:12px;color:var(--muted);line-height:1.3}
+.slot .t b{display:block;color:var(--fg);font-weight:500;font-size:14px}
+.ev{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;min-width:0;display:flex;flex-direction:column;gap:8px;grid-column:2 / 4}
+.ev h3{font-family:var(--display);font-weight:500;font-size:16px;line-height:1.3;margin:0;text-wrap:balance}
+.ev .spk{font-family:var(--display);font-weight:500;font-size:14px;color:var(--fg)}
+.ev .spk::before{content:"Speaker ";font-weight:400;color:var(--muted)}
+.ev .when{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ev.b{grid-column:2;border-color:var(--green);border-width:1px 1px 1px 4px}
+.ev.i{grid-column:3;border-color:var(--blue);border-width:1px 1px 1px 4px}
+.ev.shared{background:var(--grey-soft);border-style:dashed}
+.ev.key{border-color:var(--red);border-style:solid;border-width:1px 1px 1px 4px}
+.ev.ghost{background:transparent;border-style:dashed;color:var(--muted);font-size:14px;justify-content:center}
+.ev.now{box-shadow:0 0 0 2px var(--yellow)}
+.ev .badge{display:none;align-self:flex-start;background:var(--yellow);color:#1f1f1f;font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px}
+.ev.now .badge{display:inline-block}
+.lane-head{display:grid;grid-template-columns:56px 1fr 1fr;gap:10px}
+.lane-head div{font-family:var(--display);font-weight:500;font-size:13px;letter-spacing:.04em;text-transform:uppercase;padding:6px 0;border-bottom:3px solid}
+.lane-head .lb{grid-column:2;border-color:var(--green);color:var(--green)}
+.lane-head .li{grid-column:3;border-color:var(--blue);color:var(--blue)}
+.small{font-size:13px;color:var(--muted)}
+
+.people{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.person{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;gap:12px;align-items:center;min-width:0}
+.av{flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:500;color:#fff}
+.person b{font-family:var(--display);font-weight:500;display:block}
+.person span{font-size:13px;color:var(--muted)}
+.btn{display:inline-flex;align-self:flex-start;background:var(--blue);color:var(--bg);font-family:var(--display);font-weight:500;padding:10px 20px;border-radius:999px;text-decoration:none}
+.btn:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+
+@media (max-width:520px){
+  .slot,.lane-head{grid-template-columns:44px 1fr 1fr;gap:8px}
+  .ev{padding:10px 10px}
+  .ev h3{font-size:14px}
+}
+</style>
+
+<main class="wrap">
+  <header class="head">
+    <div class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="eyebrow">Friday, 2 October 2026</div>
+    <h1>Google for <b>Developers</b> Day: Cairo</h1>
+    <div class="meta">
+      <span class="time">13:30 – 17:45 EEST</span>
+      <span>The GrEEK Campus Downtown, 171 El Tahrir Street, Abdeen</span>
+      <span>You're registered</span>
+    </div>
+  </header>
+
+  <div class="parallel-note"><div><b>Two sessions run at once in three slots:</b> 14:20, 15:35 and 16:35. Pick one lane per slot. The Intermediate session at 16:35 runs 15 minutes longer than the Beginner one.</div></div>
+
+  <section aria-labelledby="ag" style="display:flex;flex-direction:column;gap:16px">
+    <h2 id="ag">Agenda</h2>
+    <div class="legend">
+      <span class="chip b">Beginner track</span>
+      <span class="chip i">Intermediate track</span>
+      <span class="chip s">Everyone</span>
+    </div>
+
+    <div class="agenda" id="agenda">
+      <div class="slot">
+        <div class="t"><b>13:30</b>14:00</div>
+        <div class="ev shared" data-s="810" data-e="840"><span class="badge">Now</span><h3>Registration &amp; Welcome</h3></div>
+      </div>
+
+      <div class="slot">
+        <div class="t"><b>14:00</b>14:30</div>
+        <div class="ev key" data-s="840" data-e="870"><span class="badge">Now</span><h3>Opening &amp; Keynote</h3></div>
+      </div>
+      <p class="small" style="margin:-4px 0 0 66px">The page also lists a 5 minute room change at 14:15 – 14:20, and the first sessions start at 14:20, before the keynote's 14:30 end.</p>
+
+      <div class="lane-head" aria-hidden="true"><div></div><div class="lb">Beginner</div><div class="li">Intermediate</div></div>
+
+      <div class="slot">
+        <div class="t"><b>14:20</b>15:05</div>
+        <div class="ev b" data-s="860" data-e="905"><span class="badge">Now</span><span class="chip b">Beginner</span><h3>Beyond the Prompt: Context and Harness Engineering for the Modern Developer</h3><div class="spk">Tarek Alabd</div><div class="when">14:20 – 15:05</div></div>
+        <div class="ev i" data-s="860" data-e="905"><span class="badge">Now</span><span class="chip i">Intermediate</span><h3>Safeguarding Agents with Agents Sandbox: A hands-on lab</h3><div class="spk">Abdelfettah Sghiouar</div><div class="when">14:20 – 15:05</div></div>
+      </div>
+
+      <div class="slot">
+        <div class="t"><b>15:05</b>15:35</div>
+        <div class="ev shared" data-s="905" data-e="935"><span class="badge">Now</span><h3>Lunch</h3></div>
+      </div>
+
+      <div class="slot">
+        <div class="t"><b>15:35</b>16:20</div>
+        <div class="ev b" data-s="935" data-e="980"><span class="badge">Now</span><span class="chip b">Beginner</span><h3>Flutter Agentic UI, When Apps Start Thinking, Designing, and Acting</h3><div class="spk">Ahmed Abu Eldahab</div><div class="when">15:35 – 16:20</div></div>
+        <div class="ev i" data-s="935" data-e="980"><span class="badge">Now</span><span class="chip i">Intermediate</span><h3>A return of experience. Real-World Predictive vs Generative Challenges in AI for Good</h3><div class="spk">Sarra Al-Ateif</div><div class="when">15:35 – 16:20</div></div>
+      </div>
+
+      <div class="slot">
+        <div class="t"><b>16:20</b>16:35</div>
+        <div class="ev shared" data-s="980" data-e="995"><span class="badge">Now</span><h3>Coffee Break</h3></div>
+      </div>
+
+      <div class="slot">
+        <div class="t"><b>16:35</b>17:05</div>
+        <div class="ev b" data-s="995" data-e="1025"><span class="badge">Now</span><span class="chip b">Beginner</span><h3>Your AI Made a Decision. Can You Explain It?</h3><div class="spk">Dr. Asma Merabet</div><div class="when">16:35 – 17:05</div></div>
+        <div class="ev i" data-s="995" data-e="1040"><span class="badge">Now</span><span class="chip i">Intermediate</span><h3>Scale Distributed Data Processing with GKE to build a Knowledge Graph in BigQuery</h3><div class="spk">Ibtissem Hattab</div><div class="when">16:35 – 17:20</div></div>
+      </div>
+
+      <div class="slot">
+        <div class="t"><b>17:05</b>17:35</div>
+        <div class="ev b" data-s="1025" data-e="1055"><span class="badge">Now</span><span class="chip b">Beginner</span><h3>Build with Gemma 4</h3><div class="spk">Eman Alrefai</div><div class="when">17:05 – 17:35</div></div>
+        <div class="ev i ghost" data-s="1025" data-e="1040"><span>Intermediate GKE session continues until 17:20</span></div>
+      </div>
+
+      <div class="slot">
+        <div class="t"><b>17:35</b>17:45</div>
+        <div class="ev shared" data-s="1055" data-e="1065"><span class="badge">Now</span><h3>Closing remarks</h3></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="sp" style="display:flex;flex-direction:column;gap:16px">
+    <h2 id="sp">Speakers</h2>
+    <div class="people">
+      <div class="person"><div class="av" style="background:#0b57d0">RC</div><div><b>Ramesh Chander</b><span>Head of Developer Relations MENAT, Google</span></div></div>
+      <div class="person"><div class="av" style="background:#d93025">AS</div><div><b>Abdelfettah Sghiouar</b><span>Cloud Developer Advocate, Google</span></div></div>
+      <div class="person"><div class="av" style="background:#188038">AA</div><div><b>Ahmed Abu Eldahab</b><span>CEO and Flutter GDE</span></div></div>
+      <div class="person"><div class="av" style="background:#b06000">IH</div><div><b>Ibtissem Hattab</b><span>SRE-MLOps Engineer and Cloud GDE</span></div></div>
+      <div class="person"><div class="av" style="background:#0b57d0">TA</div><div><b>Tarek Alabd</b><span>Software Engineering Team Lead and Flutter GDE</span></div></div>
+      <div class="person"><div class="av" style="background:#d93025">AM</div><div><b>Dr. Asma Merabet</b><span>AI Engineer and Backend Developer &amp; AI GDE</span></div></div>
+      <div class="person"><div class="av" style="background:#188038">SA</div><div><b>Sarra Al-Ateif</b><span>Assistant Professor and AI GDE</span></div></div>
+      <div class="person"><div class="av" style="background:#b06000">EA</div><div><b>Eman Alrefai</b><span>Applied Scientist and Cloud AI GDE</span></div></div>
+    </div>
+    
+  </section>
+
+  <a class="btn" href="https://rsvp.withgoogle.com/events/google-for-developers-day-cairo">Official event page</a>
+</main>
+
+<script>
+(function(){
+  try{
+    var p=new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+    var o={};p.forEach(function(x){o[x.type]=x.value});
+    if(o.year+'-'+o.month+'-'+o.day!=='2026-10-02')return;
+    var m=parseInt(o.hour,10)*60+parseInt(o.minute,10);
+    document.querySelectorAll('.ev[data-s]').forEach(function(e){
+      if(e.classList.contains('ghost'))return;
+      var s=+e.dataset.s,en=+e.dataset.e;
+      if(m>=s&&m<en)e.classList.add('now');
+    });
+  }catch(e){}
+})();
+</script>
+
+</body></html>
