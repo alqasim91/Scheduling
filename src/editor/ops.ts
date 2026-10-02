@@ -205,6 +205,23 @@ export function moveColumn(schedule: Schedule, id: string, direction: Direction)
 }
 
 /**
+ * Move a track to a position among the tracks (0 = first), by repeated neighbour swaps, so item
+ * spans are re-sorted exactly as `moveColumn` does. Refused for unknown ids, table columns,
+ * out-of-range positions and no-ops.
+ */
+export function moveColumnTo(schedule: Schedule, id: string, toTrackIndex: number): Schedule {
+  const tracks = trackColumns(schedule)
+  const from = tracks.findIndex((c) => c.id === id)
+  if (from < 0 || !Number.isInteger(toTrackIndex) || toTrackIndex < 0 || toTrackIndex >= tracks.length || toTrackIndex === from) {
+    return schedule
+  }
+  const step: Direction = toTrackIndex > from ? 1 : -1
+  let next = schedule
+  for (let i = from; i !== toTrackIndex; i += step) next = moveColumn(next, id, step)
+  return next
+}
+
+/**
  * Switch between track-grid and table. Nothing is deleted: when the target mode has no columns
  * yet, they are created (Session/Speaker/Tag for a table, two tracks for a grid).
  */
@@ -228,7 +245,11 @@ export function setMode(schedule: Schedule, mode: Schedule['mode']): Schedule {
   }
   // First time a grid schedule becomes a table: start from its slots, so the table is not empty.
   const rows =
-    mode === 'table' && schedule.rows.length === 0 ? rowsFromSlots(schedule.items, () => newId('row')) : schedule.rows
+    mode === 'table' && schedule.rows.length === 0 ? rowsFromSlots(
+          schedule.items,
+          () => newId('row'),
+          trackColumns(schedule).map((c) => c.id),
+        ) : schedule.rows
   return { ...schedule, mode, columns, rows }
 }
 

@@ -18,6 +18,7 @@ React, Vite, TypeScript (strict), zod for validation, Vitest with jsdom and Test
 | `npm test`          | Run the Vitest suite once                     |
 | `npm run typecheck` | Type-check without emitting                   |
 | `npm run verify:export` | Build the exported HTML for the sample and RTL fixture, open each in Chromium with all network aborted, and check data, CSP, fonts and the Now badge |
+| `npm run e2e` | Build, serve with `vite preview` and run the real-browser tests in `e2e/` (Playwright, Chromium from `PLAYWRIGHT_BROWSERS_PATH`) |
 | `npm run screenshot`| Render the Cairo sample and screenshot it next to `reference/` into `test-results/` (needs Chromium; uses `PLAYWRIGHT_BROWSERS_PATH`) |
 
 ## Data model
@@ -38,7 +39,7 @@ Cross-field rules (ids unique per collection, items point at existing columns, s
 
 - `src/render/` is a pure function from `Schedule` to an HTML string (`renderAgendaBody`, `renderDocument`, `agendaCss`). It escapes all user text, sanitises fonts, only emits `http(s)` links and `data:image/` images, and ships no scripts. The preview iframe and the future HTML export use the same code.
 - `src/editor/ops.ts` holds the pure, immutable editing operations (columns, table rows, items). Item ops work on times: `addItem(columnIds, start, end, partial)`, `moveItem(id, start, columnDelta | firstColumnId)`, `resizeItem(id, {start?, end?})`, `setItemColumns(id, first, last)`, `duplicateItem`. An op returns the same object when it is refused (overlap, out of range, nothing to do), so the UI disables controls with `op(schedule, ...) === schedule`.
-- `src/editor/*.tsx` are the panels (event, columns, grid, item form) and the live preview.
+- `src/editor/*.tsx` are the panels (event, columns, branding, table) and the live preview. `src/editor/board/` is the calendar-style board that edits the track grid, and `src/editor/useHistory.ts` is the app-wide undo history.
 - `src/samples/cairo.ts` is the Developers Day Cairo seed behind **Load sample**.
 
 ### Branding, theme, motion and locale
@@ -72,6 +73,17 @@ Cross-field rules (ids unique per collection, items point at existing columns, s
 - **Export PDF** prints that page through a hidden iframe; the print CSS forces the light palette, sets A4 with 12 mm margins, avoids breaking cards and prints the event link's address.
 - **Open…** reads `.json` or an exported `.html`/`.htm` (decided by content, never executing the file) via `src/persistence/importFile.ts`.
 
+### The board (track-grid editing)
+
+Time runs down the page, tracks are columns, sessions are cards. Geometry (minutes <-> pixels, 5-minute snapping, the visible range, and the previews of every gesture) is pure code in `src/editor/board/geometry.ts`; the DOM wiring is in `Board.tsx`. Pointer Events with pointer capture, no drag library; while dragging only a preview element is written (no React state), and the schedule changes once on drop.
+
+- **Create:** drag on empty space (across tracks to span them), or click for a 30 minute session. It opens its editor with the title focused; a new session whose title is still empty when the editor closes (Esc or click away) is discarded without a trace in the history.
+- **Move:** drag a card body. **Resize:** drag its top or bottom edge (time) or its side edges (tracks). A drop that would overlap or leave the day turns the preview red and reverts; Esc cancels any gesture. The board scrolls when you drag near its edges.
+- **Edit:** double-click or Enter opens the popover (title, speaker, variant, start/end, span all tracks, continuation label, note, delete). **Delete** or Backspace removes a card with an Undo toast.
+- **Keyboard:** Tab visits cards in time order; arrows move by 5 minutes / one track; Shift+Up/Down resizes the end; Ctrl/Cmd+D duplicates below; changes are announced in an `aria-live` region.
+- **Tracks:** double-click a header to rename, drag it to reorder, use its menu for colour and delete (undoable), `+ Track` to add one.
+- **Undo / redo** (toolbar, Ctrl/Cmd+Z, Shift+Ctrl/Cmd+Z, Ctrl+Y) cover every edit in the app, up to 100 steps. A drag is one step; typing in a field is one step.
+
 ## File format and migrations
 
 Saved files are pretty-printed JSON with a top-level `version` (currently 2). On load, `migrate` (`src/model/migrate.ts`) upgrades older files step by step to `CURRENT_VERSION`, and rejects missing or newer versions with a clear error. Adding a version means bumping `CURRENT_VERSION`, adding one upgrader function, and updating the schema.
@@ -88,10 +100,11 @@ Autosave uses the `localStorage` key `schedule-builder:v1` and is validated the 
 - [x] **M4** Export PDF/HTML and re-import
 - [x] **M5** Table mode
 - [x] **M6** Templates
+- [ ] **Direct manipulation** (in progress): time-based model (done), board (done), layout and dialog polish (next)
 
 ## User guide
 
-1. **Create.** Click **New…** and pick a template (or start blank), or **Load sample**. Edit the event details, then fill the grid or table. Switch between *Track grid* and *Table* at the top; nothing is lost when you switch.
+1. **Create.** Click **New…** and pick a template (or start blank), or **Load sample**. Edit the event details, then draw sessions on the board (or fill the table). Switch between *Track grid* and *Table* at the top; nothing is lost when you switch.
 2. **Brand.** In **Branding** set the logo, colours (and optionally dark colours), fonts, theme and motion. In **Event** choose the language, direction and 12/24-hour times; the **Labels** section changes the fixed wording on the page. The preview on the right updates as you type, and *Preview: Light | Dark* shows both themes.
 3. **Export.** **Save HTML** writes one self-contained file (with fonts embedded for offline use when it can) that highlights what is happening now. **Export PDF** opens the print dialog; choose *Save as PDF*. **Save JSON** keeps the editable data.
 4. **Re-import.** **Open…** reads a saved `.json`, an exported `.html`, or a `.template.json`. Your work is also autosaved in the browser.

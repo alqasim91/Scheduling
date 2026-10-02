@@ -12,6 +12,23 @@ beforeEach(() => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(createEmptySchedule()))
 })
 
+/** The session editor popover. */
+const editor = () => screen.getByRole('dialog', { name: 'Edit session' })
+
+type User = ReturnType<typeof userEvent.setup>
+
+/** Add a session at the suggested slot, name it and close its editor. */
+async function addSession(user: User, title: string) {
+  await user.click(screen.getByRole('button', { name: '+ Add session' }))
+  await user.keyboard(`${title}{Enter}`)
+}
+
+/** Focus a card and press Enter. */
+async function openEditor(user: User, name: RegExp) {
+  screen.getByRole('button', { name }).focus()
+  await user.keyboard('{Enter}')
+}
+
 const preview = () => screen.getByTitle('Preview').getAttribute('srcdoc') ?? ''
 const count = (name: 'columns' | 'rows' | 'items') => Number(screen.getByTestId(`summary-${name}`).textContent)
 
@@ -56,8 +73,8 @@ describe('Editor', () => {
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Load sample' }))
     expect(preview()).toContain('Intermediate GKE session continues until 17:20')
-    await user.click(screen.getByRole('button', { name: /Scale Distributed/ }))
-    const label = screen.getByLabelText('Continuation label')
+    await openEditor(user, /^Scale Distributed/)
+    const label = within(editor()).getByLabelText('Continuation label')
     await user.clear(label)
     await user.type(label, 'Lab')
     expect(preview()).toContain('Lab continues until 17:20')
@@ -86,60 +103,90 @@ describe('Editor', () => {
     expect(preview()).toContain('Beginner')
   })
 
-  it('+ Add session adds a 30 minute session on the first track and opens its form', async () => {
+  it('+ Add session adds a 30 minute session on the first track and opens its editor', async () => {
     const user = userEvent.setup()
     render(<App />)
     expect(count('items')).toBe(0)
+    expect(screen.getByText('Drag on the board to add a session')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '+ Add session' }))
     expect(count('items')).toBe(1)
-    expect(screen.getByRole('button', { name: /New session/ })).toBeInTheDocument()
-    expect(screen.getByLabelText('Item title')).toHaveValue('New session')
-    expect(screen.getByLabelText('Start')).toHaveValue('09:00')
-    expect(screen.getByLabelText('End')).toHaveValue('09:30')
-    expect(preview()).toContain('New session')
+    expect(editor()).toBeInTheDocument()
+    expect(within(editor()).getByLabelText('Title')).toHaveFocus()
+    expect(within(editor()).getByLabelText('Start')).toHaveValue('09:00')
+    expect(within(editor()).getByLabelText('End')).toHaveValue('09:30')
+    await user.keyboard('Keynote{Enter}')
+    expect(screen.queryByRole('dialog', { name: 'Edit session' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Keynote, 09:00 to 09:30, Track 1' })).toBeInTheDocument()
+    expect(preview()).toContain('Keynote')
     // The next one goes right after it.
     await user.click(screen.getByRole('button', { name: '+ Add session' }))
-    expect(screen.getByLabelText('Start')).toHaveValue('09:30')
+    expect(within(editor()).getByLabelText('Start')).toHaveValue('09:30')
   })
 
-  it('First and Last track make the item span both columns', async () => {
+  it('a new session nobody named is discarded when the editor closes, leaving nothing to undo', async () => {
     const user = userEvent.setup()
     render(<App />)
     await user.click(screen.getByRole('button', { name: '+ Add session' }))
-    expect(screen.getByRole('button', { name: /Span all columns/ })).toBeEnabled()
-    await user.selectOptions(screen.getByLabelText('Last track'), 'Track 2')
-    expect(screen.getByRole('button', { name: /Span all columns/ })).toBeDisabled()
-    expect(preview()).toMatch(/grid-column:2 \/ 4/)
-    await user.selectOptions(screen.getByLabelText('Last track'), 'Track 1')
-    expect(preview()).toMatch(/grid-column:2 \/ 3/)
-    await user.click(screen.getByRole('button', { name: /Span all columns/ }))
-    expect(preview()).toMatch(/grid-column:2 \/ 4/)
+    expect(count('items')).toBe(1)
+    await user.keyboard('{Escape}')
+    expect(count('items')).toBe(0)
+    expect(screen.queryByRole('dialog', { name: 'Edit session' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+    // Clicking away does the same.
+    await user.click(screen.getByRole('button', { name: '+ Add session' }))
+    await user.click(screen.getByLabelText('Event title'))
+    expect(count('items')).toBe(0)
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
   })
 
-  it('refuses to span into a track that is busy at that time, by disabling the choice', async () => {
+  it('a named new session survives Esc and click-away', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: '+ Add session' })) // Track 1 09:00-09:30
-    await user.click(screen.getByRole('button', { name: '+ Add session' })) // Track 1 09:30-10:00
-    await user.selectOptions(screen.getByLabelText('First track'), 'Track 2') // now Track 2 09:30-10:00
-    await user.click(screen.getByRole('button', { name: /09:00 – 09:30/ }))
-    const last = screen.getByLabelText('Last track')
-    // Widening the first session to Track 2 is fine while it ends at 09:30 ...
-    expect(within(last).getByRole('option', { name: 'Track 2' })).toBeEnabled()
-    // ... but not once it runs into the session that starts there.
-    const end = screen.getByLabelText('End')
+    await user.click(screen.getByRole('button', { name: '+ Add session' }))
+    await user.keyboard('Named{Escape}')
+    expect(count('items')).toBe(1)
+    await user.click(screen.getByRole('button', { name: '+ Add session' }))
+    await user.keyboard('Second')
+    await user.click(screen.getByLabelText('Event title'))
+    expect(count('items')).toBe(2)
+  })
+
+  it('Span all tracks makes the item cover every track, and is disabled when one is busy', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await addSession(user, 'Wide')
+    await openEditor(user, /^Wide/)
+    const span = within(editor()).getByLabelText('Span all tracks')
+    expect(span).toBeEnabled()
+    expect(span).not.toBeChecked()
+    await user.click(span)
+    expect(span).toBeChecked()
+    expect(preview()).toMatch(/grid-column:2 \/ 4/)
+    expect(screen.getByRole('button', { name: /^Wide, 09:00 to 09:30, Track 1 \+ Track 2/ })).toBeInTheDocument()
+    await user.click(span)
+    expect(preview()).toMatch(/grid-column:2 \/ 3/)
+    await user.keyboard('{Escape}')
+
+    // Another session in Track 2 at the same time blocks it.
+    await user.click(screen.getByRole('button', { name: '+ Add session' })) // 09:30-10:00 on Track 1
+    await user.keyboard('Other')
+    await user.keyboard('{Enter}')
+    await user.click(screen.getByRole('button', { name: /^Other/ }))
+    await user.keyboard('{ArrowRight}') // Track 2 now
+    await openEditor(user, /^Wide/)
+    const end = within(editor()).getByLabelText('End')
     await user.clear(end)
     await user.type(end, '09:45')
-    expect(within(last).getByRole('option', { name: 'Track 2' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /Span all columns/ })).toBeDisabled()
+    expect(within(editor()).getByLabelText('Span all tracks')).toBeDisabled()
   })
 
   it('refuses a start or end that would overlap another session in the same track', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: '+ Add session' })) // 09:00-09:30
-    await user.click(screen.getByRole('button', { name: '+ Add session' })) // 09:30-10:00
-    const start = screen.getByLabelText('Start')
+    await addSession(user, 'One') // 09:00-09:30
+    await addSession(user, 'Two') // 09:30-10:00
+    await openEditor(user, /^Two/)
+    const start = within(editor()).getByLabelText('Start')
     await user.clear(start)
     await user.type(start, '09:15')
     expect(start).toHaveAttribute('aria-invalid', 'true')
@@ -150,23 +197,152 @@ describe('Editor', () => {
     expect(preview()).toContain('09:35 – 10:00')
   })
 
-  it('edits an item and shows its changes in the preview', async () => {
+  it('edits an item live and shows its changes in the preview', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: '+ Add session' }))
-    const title = screen.getByLabelText('Item title')
-    await user.clear(title)
-    await user.type(title, 'Keynote')
-    await user.type(screen.getByLabelText('Speaker'), 'Ada')
-    await user.selectOptions(screen.getByLabelText('Variant'), 'highlight')
-    await user.type(screen.getByLabelText('Note', { selector: 'input[type=text]' }), 'Main hall')
+    await addSession(user, 'Keynote')
+    await openEditor(user, /^Keynote/)
+    const dialog = within(editor())
+    await user.type(dialog.getByLabelText('Speaker'), 'Ada')
+    await user.click(dialog.getByRole('button', { name: 'Highlight' }))
+    await user.type(dialog.getByLabelText('Note'), 'Main hall')
     expect(preview()).toContain('class="ev key"')
     expect(preview()).toContain('Ada')
     expect(preview()).toContain('<p class="small"')
     expect(preview()).toContain('Main hall')
-    await user.click(screen.getByRole('button', { name: 'Delete item' }))
+    expect(dialog.getByRole('button', { name: 'Highlight' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(dialog.getByRole('button', { name: 'Delete' }))
     expect(count('items')).toBe(0)
-    expect(screen.queryByLabelText('Item title')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Edit session' })).not.toBeInTheDocument()
+  })
+
+  it('the speaker box suggests the speakers list but accepts a new name', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Load sample' }))
+    await openEditor(user, /^Build with Gemma 4/)
+    const speaker = within(editor()).getByLabelText('Speaker')
+    expect(speaker).toHaveAttribute('list')
+    expect(document.getElementById(speaker.getAttribute('list') ?? '')?.querySelectorAll('option')).toHaveLength(8)
+    await user.clear(speaker)
+    await user.type(speaker, 'Someone New')
+    expect(preview()).toContain('Someone New')
+  })
+
+  describe('keyboard on a card', () => {
+    async function withCard(user: ReturnType<typeof userEvent.setup>) {
+      render(<App />)
+      await addSession(user, 'Movable') // Track 1, 09:00-09:30
+      const card = screen.getByRole('button', { name: /^Movable/ })
+      card.focus()
+      return card
+    }
+
+    it('arrows move by 5 minutes or a track, Shift+arrows resize, and every change is announced', async () => {
+      const user = userEvent.setup()
+      const card = await withCard(user)
+      await user.keyboard('{ArrowDown}{ArrowDown}')
+      expect(card).toHaveAccessibleName('Movable, 09:10 to 09:40, Track 1')
+      expect(document.querySelector('.board__live')).toHaveTextContent('Moved to 09:10, Track 1')
+      await user.keyboard('{ArrowUp}')
+      expect(card).toHaveAccessibleName('Movable, 09:05 to 09:35, Track 1')
+      await user.keyboard('{Shift>}{ArrowDown}{/Shift}')
+      expect(card).toHaveAccessibleName('Movable, 09:05 to 09:40, Track 1')
+      await user.keyboard('{Shift>}{ArrowUp}{ArrowUp}{/Shift}')
+      expect(card).toHaveAccessibleName('Movable, 09:05 to 09:30, Track 1')
+      await user.keyboard('{ArrowRight}')
+      expect(card).toHaveAccessibleName('Movable, 09:05 to 09:30, Track 2')
+      expect(document.querySelector('.board__live')).toHaveTextContent('Moved to 09:05, Track 2')
+      await user.keyboard('{ArrowRight}')
+      expect(card).toHaveAccessibleName('Movable, 09:05 to 09:30, Track 2')
+      expect(document.querySelector('.board__live')).toHaveTextContent("Can't move to that track")
+      // Held keys are one undo step.
+      await user.click(screen.getByRole('button', { name: 'Undo' }))
+      expect(screen.getByRole('button', { name: 'Movable, 09:00 to 09:30, Track 1' })).toBeInTheDocument()
+    })
+
+    it('Enter opens the editor, Ctrl+D duplicates below, Delete removes with an Undo toast', async () => {
+      const user = userEvent.setup()
+      const card = await withCard(user)
+      await user.keyboard('{Control>}d{/Control}')
+      expect(count('items')).toBe(2)
+      expect(screen.getByRole('button', { name: 'Movable, 09:30 to 10:00, Track 1' })).toHaveFocus()
+      await user.keyboard('{Delete}')
+      expect(count('items')).toBe(1)
+      const toast = screen.getByText('Session deleted').closest('[role="status"]') as HTMLElement
+      expect(toast).toHaveTextContent('Session deleted · Undo')
+      await user.click(within(toast).getByRole('button', { name: 'Undo' }))
+      expect(count('items')).toBe(2)
+      expect(screen.queryByText('Session deleted')).not.toBeInTheDocument()
+      screen.getByRole('button', { name: /^Movable, 09:00/ }).focus()
+      await user.keyboard('{Enter}')
+      expect(within(editor()).getByLabelText('Title')).toHaveFocus()
+      expect(card).toBeInTheDocument()
+    })
+
+    it('every card is named "title, start to end, track"', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      await user.click(screen.getByRole('button', { name: 'Load sample' }))
+      expect(screen.getByRole('button', { name: 'Closing remarks, 17:35 to 17:45, Beginner + Intermediate' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /^Build with Gemma 4, 17:05 to 17:35, Beginner$/ })).toBeInTheDocument()
+    })
+  })
+
+  describe('undo and redo', () => {
+    it('cover the whole app: event text, branding and table edits as well as the board', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      const undoButton = screen.getByRole('button', { name: 'Undo' })
+      const redoButton = screen.getByRole('button', { name: 'Redo' })
+      expect(undoButton).toBeDisabled()
+      expect(redoButton).toBeDisabled()
+      const title = screen.getByLabelText('Event title')
+      await user.clear(title)
+      await user.type(title, 'Renamed event')
+      expect(undoButton).toBeEnabled()
+      await user.click(undoButton) // typing is one step
+      expect(title).toHaveValue('Untitled event')
+      expect(redoButton).toBeEnabled()
+      await user.click(redoButton)
+      expect(title).toHaveValue('Renamed event')
+      // A table edit.
+      await user.click(screen.getByRole('button', { name: 'Table' }))
+      await user.click(screen.getByRole('button', { name: '+ Add row' }))
+      expect(count('rows')).toBe(1)
+      await user.click(undoButton)
+      expect(count('rows')).toBe(0)
+      await user.click(undoButton) // the mode switch
+      expect(screen.getByRole('button', { name: 'Track grid' })).toHaveAttribute('aria-pressed', 'true')
+      // Branding: the logo height / colours go through the same history.
+      await user.click(screen.getByRole('button', { name: 'Redo' }))
+      expect(screen.getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true')
+    })
+
+    it('Ctrl+Z, Shift+Ctrl+Z and Ctrl+Y work from anywhere', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      await addSession(user, 'Shortcut') // creating and naming it is one step
+      expect(count('items')).toBe(1)
+      await user.keyboard('{Control>}z{/Control}')
+      expect(count('items')).toBe(0)
+      await user.keyboard('{Control>}{Shift>}z{/Shift}{/Control}')
+      expect(count('items')).toBe(1)
+      await user.keyboard('{Control>}z{/Control}')
+      await user.keyboard('{Control>}y{/Control}')
+      expect(count('items')).toBe(1)
+      await user.keyboard('{Meta>}z{/Meta}')
+      expect(count('items')).toBe(0)
+    })
+
+    it('New, Open and the sample replace the schedule as one undoable step', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      await user.click(screen.getByRole('button', { name: 'Load sample' }))
+      expect(count('items')).toBe(12)
+      await user.click(screen.getByRole('button', { name: 'Undo' }))
+      expect(count('items')).toBe(0)
+    })
   })
 
   it('keeps an invalid date or timezone as a draft without corrupting state', async () => {

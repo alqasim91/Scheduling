@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Editor } from './editor/Editor.tsx'
+import { useHistory } from './editor/useHistory.ts'
 import type { Schedule } from './model/schema.ts'
 import { buildExportHtml } from './export/exportHtml.ts'
 import { embedFonts } from './export/embedFonts.ts'
@@ -25,7 +26,10 @@ export default function App() {
     const saved = readAutosaved(STORAGE_KEY)
     return { schedule: saved?.schedule ?? structuredClone(cairoSample), warnings: saved?.warnings ?? [] }
   })
-  const [schedule, setSchedule] = useState<Schedule>(initial.schedule)
+  const history = useHistory(initial.schedule)
+  const schedule = history.schedule
+  /** Replace the whole schedule (New, Open, sample): one undoable step. */
+  const replaceSchedule = (next: Schedule) => history.set(() => next, { key: null })
   const [errors, setErrors] = useState<string[]>([])
   /** Notes from migrating an opened file; shown once until dismissed. */
   const [warnings, setWarnings] = useState<string[]>(initial.warnings)
@@ -37,6 +41,21 @@ export default function App() {
   const fileInput = useRef<HTMLInputElement>(null)
 
   useAutosave(STORAGE_KEY, schedule)
+
+  // ⌘/Ctrl+Z undoes, ⇧⌘Z and Ctrl+Y redo, wherever the focus is.
+  const { undo, redo } = history
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return
+      const key = e.key.toLowerCase()
+      if (key === 'z' && !e.shiftKey) undo()
+      else if ((key === 'z' && e.shiftKey) || (key === 'y' && !e.shiftKey && e.ctrlKey)) redo()
+      else return
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo])
 
   // An older autosave was upgraded on load: store the upgraded copy now, so its notes appear only once.
   useEffect(() => {
@@ -57,7 +76,7 @@ export default function App() {
     ) {
       return
     }
-    setSchedule(next)
+    replaceSchedule(next)
     setErrors([])
     setWarnings([])
     setDialog(null)
@@ -82,7 +101,7 @@ export default function App() {
       }
       const result = importFileText(text)
       if (result.ok) {
-        setSchedule(result.value)
+        replaceSchedule(result.value)
         setErrors([])
         setWarnings(result.warnings)
       } else {
@@ -131,7 +150,7 @@ export default function App() {
   }
 
   function handleLoadSample() {
-    setSchedule(structuredClone(cairoSample))
+    replaceSchedule(structuredClone(cairoSample))
     setErrors([])
     setWarnings([])
   }
@@ -150,6 +169,12 @@ export default function App() {
         </button>
         <button type="button" onClick={handleSave}>
           Save JSON
+        </button>
+        <button type="button" onClick={history.undo} disabled={!history.canUndo} aria-keyshortcuts="Control+Z Meta+Z">
+          Undo
+        </button>
+        <button type="button" onClick={history.redo} disabled={!history.canRedo} aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y">
+          Redo
         </button>
         <button type="button" onClick={handleLoadSample}>
           Load sample
@@ -216,7 +241,7 @@ export default function App() {
         </div>
       )}
 
-      <Editor schedule={schedule} setSchedule={setSchedule} />
+      <Editor schedule={schedule} apply={history.set} undo={history.undo} rollbackTo={history.rollbackTo} />
 
       {dialog === 'gallery' && <Gallery onClose={() => setDialog(null)} onChoose={handleChoose} />}
       {dialog === 'save' && (
@@ -238,7 +263,7 @@ export default function App() {
             setNotice(`Added “${name}” to My templates.`)
           }}
           onOpenAsSchedule={() => {
-            setSchedule(instantiate({ schedule: pendingTemplate.schedule }))
+            replaceSchedule(instantiate({ schedule: pendingTemplate.schedule }))
             setWarnings(pendingTemplate.warnings)
             setPendingTemplate(null)
           }}

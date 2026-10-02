@@ -30,7 +30,19 @@ export function deriveSlots(items: readonly Item[]): Slot[] {
     })
 }
 
-/** Rows for table mode, taken from the grid slots (used the first time a grid schedule becomes a table). */
-export function rowsFromSlots(items: readonly Item[], makeId: () => string): Row[] {
-  return deriveSlots(items).map((slot) => ({ id: makeId(), start: slot.start, end: slot.end }))
+/**
+ * Rows for table mode, taken from the grid slots (used the first time a grid schedule becomes a
+ * table). A slot's item notes become the row's note (in `columnOrder`, joined by a space).
+ */
+export function rowsFromSlots(items: readonly Item[], makeId: () => string, columnOrder: readonly string[] = []): Row[] {
+  const position = (item: Item) => Math.min(...item.columnIds.map((id) => columnOrder.indexOf(id)).map((i) => (i < 0 ? Infinity : i)))
+  return deriveSlots(items).map((slot) => {
+    const note = [...slot.items]
+      .map((item, order) => ({ item, order }))
+      .sort((a, b) => position(a.item) - position(b.item) || a.order - b.order)
+      .map(({ item }) => item.note?.trim() ?? '')
+      .filter((n) => n !== '')
+      .join(' ')
+    return { id: makeId(), start: slot.start, end: slot.end, ...(note ? { note } : {}) }
+  })
 }

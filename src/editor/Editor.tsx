@@ -1,9 +1,9 @@
-import { useState, type Dispatch, type SetStateAction } from 'react'
+import { useState } from 'react'
 import type { Schedule } from '../model/schema.ts'
 import { BrandingPanel } from './BrandingPanel.tsx'
 import { ColumnsPanel } from './ColumnsPanel.tsx'
 import { EventPanel } from './EventPanel.tsx'
-import { GridPanel } from './GridPanel.tsx'
+import { Board } from './board/Board.tsx'
 import { TablePanel } from './TablePanel.tsx'
 import { setMode, tableColumns, trackColumns } from './ops.ts'
 import { Preview } from './Preview.tsx'
@@ -11,12 +11,13 @@ import type { Apply } from './types.ts'
 
 interface Props {
   schedule: Schedule
-  setSchedule: Dispatch<SetStateAction<Schedule>>
+  apply: Apply
+  undo: () => void
+  rollbackTo: (snapshot: Schedule) => void
 }
 
 /** Left: editing panels. Right: live preview of the rendered agenda. */
-export function Editor({ schedule, setSchedule }: Props) {
-  const apply: Apply = (op) => setSchedule((current) => op(current))
+export function Editor({ schedule, apply, undo, rollbackTo }: Props) {
   // Preview-only choices: they are never saved into the schedule.
   const [previewTheme, setPreviewTheme] = useState<'light' | 'dark' | undefined>(undefined)
   const [replayKey, setReplayKey] = useState(0)
@@ -56,13 +57,13 @@ export function Editor({ schedule, setSchedule }: Props) {
             <dd data-testid="summary-items">{schedule.items.length}</dd>
           </div>
         </dl>
-        <EventPanel schedule={schedule} apply={apply} />
-        <ColumnsPanel schedule={schedule} apply={apply} />
         {schedule.mode === 'table' ? (
           <TablePanel schedule={schedule} apply={apply} />
         ) : (
-          <GridPanel schedule={schedule} apply={apply} />
+          <Board schedule={schedule} apply={apply} undo={undo} rollbackTo={rollbackTo} />
         )}
+        <EventPanel schedule={schedule} apply={apply} />
+        <ColumnsPanel schedule={schedule} apply={apply} />
         <BrandingPanel schedule={schedule} apply={apply} />
       </div>
       <div className="editor__preview">

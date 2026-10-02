@@ -49,6 +49,21 @@ describe('deriveSlots', () => {
       { id: 'row2', start: '09:30', end: '10:00' },
     ])
   })
+
+  it('copies the notes of a slot onto its row, in column order, skipping blanks', () => {
+    let n = 0
+    const rows = rowsFromSlots(
+      [it_('b', '09:00', '09:30', ['B']), it_('a', '09:00', '09:30', ['A']), it_('c', '09:30', '10:00', ['A'])].map((i) =>
+        i.id === 'b' ? { ...i, note: 'Second' } : i.id === 'a' ? { ...i, note: 'First' } : { ...i, note: '  ' },
+      ),
+      () => `row${++n}`,
+      ['A', 'B'],
+    )
+    expect(rows).toEqual([
+      { id: 'row1', start: '09:00', end: '09:30', note: 'First Second' },
+      { id: 'row2', start: '09:30', end: '10:00' },
+    ])
+  })
 })
 
 describe('intervalsOverlap', () => {

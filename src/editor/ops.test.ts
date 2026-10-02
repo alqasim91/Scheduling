@@ -16,6 +16,7 @@ import {
   duplicateItem,
   insertRowAfter,
   moveColumn,
+  moveColumnTo,
   moveItem,
   moveRow,
   removeColumn,
@@ -144,6 +145,33 @@ describe('columns', () => {
     const s = withItem(grid(), { id: 'ab', columnIds: ['A', 'B'] })
     const moved = moveColumn(s, 'B', 1) // A, C, B
     expect(item(moved, 'ab').columnIds).toEqual(['A'])
+    expectValid(moved)
+  })
+})
+
+describe('moveColumnTo', () => {
+  it('moves a track to a position among the tracks', () => {
+    const s = grid()
+    expect(moveColumnTo(s, 'A', 2).columns.map((c) => c.id)).toEqual(['B', 'C', 'A'])
+    expect(moveColumnTo(s, 'C', 0).columns.map((c) => c.id)).toEqual(['C', 'A', 'B'])
+    expect(moveColumnTo(s, 'B', 2).columns.map((c) => c.id)).toEqual(['A', 'C', 'B'])
+  })
+
+  it('refuses no-ops, bad positions and unknown or table columns', () => {
+    const s = setMode(grid(), 'table')
+    expect(moveColumnTo(s, 'A', 0)).toBe(s)
+    expect(moveColumnTo(s, 'A', 3)).toBe(s)
+    expect(moveColumnTo(s, 'A', -1)).toBe(s)
+    expect(moveColumnTo(s, 'A', 0.5)).toBe(s)
+    expect(moveColumnTo(s, 'nope', 1)).toBe(s)
+    expect(moveColumnTo(s, tableColumns(s)[0]!.id, 1)).toBe(s)
+  })
+
+  it('keeps the sessions valid and contiguous, shrinking spans that stop being contiguous', () => {
+    const s = withItem(withItem(grid(), { id: 'ab', columnIds: ['A', 'B'] }), { id: 'c', columnIds: ['C'], start: '11:00', end: '12:00' })
+    const moved = moveColumnTo(s, 'B', 2) // A, C, B
+    expect(item(moved, 'ab').columnIds).toEqual(['A'])
+    expect(item(moved, 'c').columnIds).toEqual(['C'])
     expectValid(moved)
   })
 })
@@ -666,8 +694,16 @@ describe('setMode', () => {
       '17:35-17:45',
     ])
     expect(new Set(next.rows.map((r) => r.id)).size).toBe(9)
-    expect(next.rows.every((r) => r.cells === undefined && r.note === undefined)).toBe(true)
+    expect(next.rows.every((r) => r.cells === undefined)).toBe(true)
     expectValid(next)
+  })
+
+  it('the derived rows carry the slot notes, and existing rows are never touched', () => {
+    const next = setMode(cairoSample, 'table')
+    expect(next.rows[1]?.note).toMatch(/room change at 14:15/)
+    expect(next.rows.filter((r) => r.note !== undefined)).toHaveLength(1)
+    const withRows = { ...cairoSample, rows: [{ id: 'mine', start: '08:00', end: '09:00' }] }
+    expect(setMode(withRows, 'table').rows).toBe(withRows.rows)
   })
 
   it('a slot ends at the earliest end of the sessions that start there', () => {

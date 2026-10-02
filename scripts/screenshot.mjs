@@ -166,6 +166,45 @@ try {
     await page.screenshot({ path: gallery })
     console.log(`wrote ${gallery}`)
     await context.close()
+
+    // The board and the split editor, on the first-launch Cairo sample (fresh browser profile).
+    const editorContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+    const editor = await editorContext.newPage()
+    await editor.route(/https?:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)\/.*/, (route) => route.abort())
+    await editor.goto(base, { waitUntil: 'load' })
+    const cols = editor.locator('.board__cols')
+    await cols.waitFor()
+    await editor.waitForTimeout(800) // the preview iframe paints
+    const editorSplit = join(outDir, 'editor-split.png')
+    await editor.screenshot({ path: editorSplit })
+    console.log(`wrote ${editorSplit}`)
+
+    const boardPanel = editor.locator('section.board')
+    const boardShot = join(outDir, 'board.png')
+    await boardPanel.screenshot({ path: boardShot })
+    console.log(`wrote ${boardShot}`)
+
+    // Mid-drag: "Build with Gemma 4" held over a free spot, with the snapped preview and its time label.
+    const at = async (minutes, track) => {
+      const info = await cols.evaluate((el) => {
+        const r = el.getBoundingClientRect()
+        return { left: r.left, top: r.top, width: r.width, start: Number(el.dataset.rangeStart), ppm: Number(el.dataset.ppm), tracks: Number(el.dataset.tracks) }
+      })
+      return { x: info.left + ((track + 0.5) * info.width) / info.tracks, y: info.top + (minutes - info.start) * info.ppm }
+    }
+    const card = editor.getByRole('button', { name: /^Build with Gemma 4/ })
+    const box = await card.boundingBox()
+    const target = await at(18 * 60 + 12, 0)
+    await editor.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await editor.mouse.down()
+    await editor.mouse.move(target.x, target.y, { steps: 12 })
+    await editor.waitForTimeout(150)
+    const dragShot = join(outDir, 'board-dragging.png')
+    await boardPanel.screenshot({ path: dragShot })
+    console.log(`wrote ${dragShot}`)
+    await editor.keyboard.press('Escape')
+    await editor.mouse.up()
+    await editorContext.close()
   } finally {
     await server.close()
   }
