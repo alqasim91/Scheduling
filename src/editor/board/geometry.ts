@@ -42,10 +42,14 @@ export function formatMinutes(minutes: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 }
 
-/** Which of `count` equal columns spanning [left, left + width) contains x (clamped to the ends). */
-export function columnAt(x: number, left: number, width: number, count: number): number {
+/**
+ * Which of `count` equal columns spanning [left, left + width) contains x (clamped to the ends).
+ * Right-to-left boards put the first column at the right edge.
+ */
+export function columnAt(x: number, left: number, width: number, count: number, rtl = false): number {
   if (count <= 0 || width <= 0) return 0
-  return clamp(Math.floor(((x - left) / width) * count), 0, count - 1)
+  const fraction = (x - left) / width
+  return clamp(Math.floor((rtl ? 1 - fraction : fraction) * count), 0, count - 1)
 }
 
 /* ---------- the visible range ---------- */

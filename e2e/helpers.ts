@@ -78,10 +78,11 @@ export class Board {
   async at(time: string, track: number, extraMinutes = 0, xFraction = 0.5): Promise<{ x: number; y: number }> {
     const info = await this.cols.evaluate((el) => {
       const r = el.getBoundingClientRect()
-      return { left: r.left, top: r.top, width: r.width, start: Number(el.getAttribute('data-range-start')), ppm: Number(el.getAttribute('data-ppm')), tracks: Number(el.getAttribute('data-tracks')) }
+      return { left: r.left, top: r.top, width: r.width, start: Number(el.getAttribute('data-range-start')), ppm: Number(el.getAttribute('data-ppm')), tracks: Number(el.getAttribute('data-tracks')), rtl: el.getAttribute('data-rtl') === 'true' }
     })
     const point = {
-      x: info.left + ((track + xFraction) * info.width) / info.tracks,
+      // A right-to-left board puts the first track at the right edge.
+      x: info.left + ((info.rtl ? info.tracks - track - xFraction : track + xFraction) * info.width) / info.tracks,
       y: info.top + (minutes(time) + extraMinutes - info.start) * info.ppm,
     }
     // Tests drive a real mouse: a point outside the board's visible area would silently click something else.

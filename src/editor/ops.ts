@@ -347,6 +347,16 @@ export function moveRow(schedule: Schedule, id: string, direction: Direction): S
   return { ...schedule, rows }
 }
 
+/** Move a row to a position (0 = first). Refused for unknown ids, out-of-range positions and no-ops. */
+export function moveRowTo(schedule: Schedule, id: string, toIndex: number): Schedule {
+  const from = schedule.rows.findIndex((r) => r.id === id)
+  if (from < 0 || !Number.isInteger(toIndex) || toIndex < 0 || toIndex >= schedule.rows.length || toIndex === from) return schedule
+  const rows = [...schedule.rows]
+  const [moved] = rows.splice(from, 1)
+  rows.splice(toIndex, 0, moved as Row)
+  return { ...schedule, rows }
+}
+
 /* ---------- items (track grid) ---------- */
 
 export type ItemInit = Partial<
@@ -523,4 +533,76 @@ export function duplicateItem(schedule: Schedule, id: string, newItemId: string 
   }
   const copy: Item = { ...item, id: newItemId, start: fromMinutes(start), end: fromMinutes(start + length) }
   return { ...schedule, items: [...schedule.items, copy] }
+}
+
+/* ---------- speakers ---------- */
+
+const sameName = (a: string, b: string): boolean => a.trim() !== '' && a.trim().toLowerCase() === b.trim().toLowerCase()
+
+/** Append a speaker. Refused for a duplicate id, a bad colour or a photo that is not a data:image URI. */
+export function addSpeaker(
+  schedule: Schedule,
+  init: { id?: string; name?: string; role?: string; color?: string; photo?: string } = {},
+): Schedule {
+  const id = init.id ?? newId('spk')
+  if (schedule.speakers.some((s) => s.id === id)) return schedule
+  if (init.color !== undefined && !HEX_COLOR.test(init.color)) return schedule
+  if (init.photo !== undefined && !init.photo.startsWith('data:image/')) return schedule
+  const speaker: Schedule['speakers'][number] = {
+    id,
+    name: init.name ?? '',
+    role: init.role ?? '',
+    color: init.color ?? (COLUMN_PALETTE[schedule.speakers.length % COLUMN_PALETTE.length] as string),
+  }
+  if (init.photo) speaker.photo = init.photo
+  return { ...schedule, speakers: [...schedule.speakers, speaker] }
+}
+
+/**
+ * Edit a speaker. Renaming also renames them in the sessions and table person cells that used the
+ * old name (case-insensitively), so the avatar keeps matching. `photo: null` removes the photo.
+ */
+export function updateSpeaker(
+  schedule: Schedule,
+  id: string,
+  patch: { name?: string; role?: string; color?: string; photo?: string | null },
+): Schedule {
+  const speaker = schedule.speakers.find((s) => s.id === id)
+  if (!speaker) return schedule
+  if (patch.color !== undefined && !HEX_COLOR.test(patch.color)) return schedule
+  if (typeof patch.photo === 'string' && !patch.photo.startsWith('data:image/')) return schedule
+  let next = { ...speaker }
+  if (patch.name !== undefined) next.name = patch.name
+  if (patch.role !== undefined) next.role = patch.role
+  if (patch.color !== undefined) next.color = patch.color
+  if (patch.photo === null) next = omitKey(next, 'photo')
+  else if (patch.photo !== undefined) next.photo = patch.photo
+  if (JSON.stringify(next) === JSON.stringify(speaker)) return schedule
+
+  let result: Schedule = { ...schedule, speakers: schedule.speakers.map((s) => (s.id === id ? next : s)) }
+  if (patch.name !== undefined && patch.name !== speaker.name && speaker.name.trim() !== '') {
+    const personColumns = new Set(schedule.columns.filter((c) => c.type === 'person').map((c) => c.id))
+    result = {
+      ...result,
+      items: result.items.map((i) => (i.speaker !== undefined && sameName(i.speaker, speaker.name) ? { ...i, speaker: patch.name as string } : i)),
+      rows: result.rows.map((r) => {
+        if (!r.cells) return r
+        let changed = false
+        const cells = { ...r.cells }
+        for (const [columnId, value] of Object.entries(cells)) {
+          if (personColumns.has(columnId) && sameName(value, speaker.name)) {
+            cells[columnId] = patch.name as string
+            changed = true
+          }
+        }
+        return changed ? { ...r, cells } : r
+      }),
+    }
+  }
+  return result
+}
+
+export function removeSpeaker(schedule: Schedule, id: string): Schedule {
+  if (!schedule.speakers.some((s) => s.id === id)) return schedule
+  return { ...schedule, speakers: schedule.speakers.filter((s) => s.id !== id) }
 }

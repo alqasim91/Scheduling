@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Modal } from './Modal.tsx'
+import { Modal } from '../ui/Modal.tsx'
 import { saveUserTemplate } from './store.ts'
 import type { TemplateContent } from './types.ts'
 

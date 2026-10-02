@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import App from '../App.tsx'
 import { createEmptySchedule } from '../model/defaults.ts'
 import { STORAGE_KEY } from '../persistence/useAutosave.ts'
-import { startBlank } from '../test/helpers.ts'
+import { loadSample, openSection, redoButton, startBlank, undoButton } from '../test/helpers.ts'
 
 /** Tests start from the empty schedule; the app itself starts from the sample on first launch. */
 beforeEach(() => {
@@ -30,14 +30,16 @@ async function openEditor(user: User, name: RegExp) {
 }
 
 const preview = () => screen.getByTitle('Preview').getAttribute('srcdoc') ?? ''
-const count = (name: 'columns' | 'rows' | 'items') => Number(screen.getByTestId(`summary-${name}`).textContent)
+/** How many of something are on screen: board cards, board headers or table-column rows, table rows. */
+const count = (name: 'columns' | 'rows' | 'items') =>
+  document.querySelectorAll(name === 'items' ? '.board-card' : name === 'columns' ? '.board-head, .columns__item' : 'tr[data-row-id]').length
 
 describe('Editor', () => {
   it('Load sample fills the preview with the Cairo agenda', async () => {
     const user = userEvent.setup()
     render(<App />)
     expect(preview()).not.toContain('Build with Gemma 4')
-    await user.click(screen.getByRole('button', { name: 'Load sample' }))
+    await loadSample(user)
     expect(preview()).toContain('Build with Gemma 4')
     expect(screen.getByLabelText('Event title')).toHaveValue('Google for Developers Day: Cairo')
     expect(count('rows')).toBe(0)
@@ -59,7 +61,7 @@ describe('Editor', () => {
   it('edits the labels and shows them in the preview', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByText('Labels'))
+    await openSection(user, 'Labels')
     const agenda = screen.getByLabelText('Agenda heading')
     expect(agenda).toHaveAttribute('placeholder', 'Agenda')
     await user.type(agenda, 'Programme')
@@ -71,7 +73,7 @@ describe('Editor', () => {
   it('edits an item continuation label', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Load sample' }))
+    await loadSample(user)
     expect(preview()).toContain('Intermediate GKE session continues until 17:20')
     await openEditor(user, /^Scale Distributed/)
     const label = within(editor()).getByLabelText('Continuation label')
@@ -83,24 +85,6 @@ describe('Editor', () => {
   it('uses a neutral timezone example', () => {
     render(<App />)
     expect(screen.getByLabelText('Timezone')).toHaveAttribute('placeholder', 'Europe/London')
-  })
-
-  it('+ Add column increases the column count', async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    expect(count('columns')).toBe(2)
-    await user.click(screen.getByRole('button', { name: '+ Add column' }))
-    expect(count('columns')).toBe(3)
-    expect(screen.getByLabelText('Column 3 name')).toHaveValue('Track 3')
-  })
-
-  it('renaming a column updates the preview', async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    const name = screen.getByLabelText('Column 1 name')
-    await user.clear(name)
-    await user.type(name, 'Beginner')
-    expect(preview()).toContain('Beginner')
   })
 
   it('+ Add session adds a 30 minute session on the first track and opens its editor', async () => {
@@ -131,12 +115,12 @@ describe('Editor', () => {
     await user.keyboard('{Escape}')
     expect(count('items')).toBe(0)
     expect(screen.queryByRole('dialog', { name: 'Edit session' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+    expect(undoButton()).toBeDisabled()
     // Clicking away does the same.
     await user.click(screen.getByRole('button', { name: '+ Add session' }))
     await user.click(screen.getByLabelText('Event title'))
     expect(count('items')).toBe(0)
-    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+    expect(undoButton()).toBeDisabled()
   })
 
   it('a named new session survives Esc and click-away', async () => {
@@ -216,17 +200,78 @@ describe('Editor', () => {
     expect(screen.queryByRole('dialog', { name: 'Edit session' })).not.toBeInTheDocument()
   })
 
-  it('the speaker box suggests the speakers list but accepts a new name', async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Load sample' }))
-    await openEditor(user, /^Build with Gemma 4/)
-    const speaker = within(editor()).getByLabelText('Speaker')
-    expect(speaker).toHaveAttribute('list')
-    expect(document.getElementById(speaker.getAttribute('list') ?? '')?.querySelectorAll('option')).toHaveLength(8)
-    await user.clear(speaker)
-    await user.type(speaker, 'Someone New')
-    expect(preview()).toContain('Someone New')
+  describe('speaker combobox', () => {
+    async function openSpeaker() {
+      const user = userEvent.setup()
+      render(<App />)
+      await loadSample(user)
+      await openEditor(user, /^Build with Gemma 4/)
+      return { user, speaker: within(editor()).getByRole('combobox', { name: 'Speaker' }) }
+    }
+    const listbox = () => screen.queryByRole('listbox')
+    const options = () => (listbox() ? within(listbox() as HTMLElement).getAllByRole('option').map((o) => o.textContent) : [])
+
+    it('suggests the speakers list, filters as you type, and picks with the arrow keys', async () => {
+      const { user, speaker } = await openSpeaker()
+      expect(speaker).toHaveAttribute('aria-autocomplete', 'list')
+      await user.click(speaker)
+      expect(screen.getByRole('listbox', { name: 'Speaker suggestions' })).toBeInTheDocument()
+      expect(speaker).toHaveAttribute('aria-expanded', 'true')
+      await user.clear(speaker)
+      expect(options()).toHaveLength(8)
+      await user.type(speaker, 'asma')
+      expect(options()).toEqual(['Dr. Asma MerabetAI Engineer and Backend Developer & AI GDE', 'Add ‘asma’ as new speaker'])
+      await user.keyboard('{ArrowDown}')
+      expect(speaker).toHaveAttribute('aria-activedescendant', within(listbox() as HTMLElement).getAllByRole('option')[0]?.id)
+      await user.keyboard('{Enter}')
+      expect(speaker).toHaveValue('Dr. Asma Merabet')
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+      expect(preview()).toContain('Dr. Asma Merabet')
+      expect(editor()).toBeInTheDocument() // Enter chose; it did not close the editor
+    })
+
+    it('Esc closes the list first and the editor second', async () => {
+      const { user, speaker } = await openSpeaker()
+      await user.click(speaker)
+      expect(screen.getByRole('listbox')).toBeInTheDocument()
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+      expect(editor()).toBeInTheDocument()
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog', { name: 'Edit session' })).not.toBeInTheDocument()
+    })
+
+    it('a name that is not in the list can be typed, or added to the speakers list from the suggestions', async () => {
+      const { user, speaker } = await openSpeaker()
+      await user.clear(speaker)
+      await user.type(speaker, 'Someone New')
+      expect(preview()).toContain('Someone New') // typing a new name is allowed as is
+      const add = screen.getByRole('option', { name: 'Add ‘Someone New’ as new speaker' })
+      await user.click(add)
+      expect(speaker).toHaveValue('Someone New')
+      await user.keyboard('{Escape}')
+      await openSection(user, 'Speakers')
+      expect(screen.getByLabelText('Speaker 9 name')).toHaveValue('Someone New')
+      // Now it is a known speaker: no "Add" option for the same name, whatever the capitalisation.
+      await openEditor(user, /^Build with Gemma 4/)
+      const again = within(editor()).getByRole('combobox', { name: 'Speaker' })
+      await user.clear(again)
+      await user.type(again, 'someone ne')
+      expect(options()).toEqual(['Someone New', 'Add ‘someone ne’ as new speaker'])
+      await user.type(again, 'w')
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument() // fully typed and known: nothing left to suggest
+    })
+
+    it('picking a new name is one undo step', async () => {
+      const { user, speaker } = await openSpeaker()
+      await user.clear(speaker)
+      await user.type(speaker, 'Fresh Face')
+      await user.click(screen.getByRole('option', { name: 'Add ‘Fresh Face’ as new speaker' }))
+      await user.keyboard('{Escape}')
+      await user.click(undoButton())
+      await openSection(user, 'Speakers')
+      expect(screen.queryByLabelText('Speaker 9 name')).not.toBeInTheDocument()
+    })
   })
 
   describe('keyboard on a card', () => {
@@ -257,7 +302,7 @@ describe('Editor', () => {
       expect(card).toHaveAccessibleName('Movable, 09:05 to 09:30, Track 2')
       expect(document.querySelector('.board__live')).toHaveTextContent("Can't move to that track")
       // Held keys are one undo step.
-      await user.click(screen.getByRole('button', { name: 'Undo' }))
+      await user.click(undoButton())
       expect(screen.getByRole('button', { name: 'Movable, 09:00 to 09:30, Track 1' })).toBeInTheDocument()
     })
 
@@ -283,7 +328,7 @@ describe('Editor', () => {
     it('every card is named "title, start to end, track"', async () => {
       const user = userEvent.setup()
       render(<App />)
-      await user.click(screen.getByRole('button', { name: 'Load sample' }))
+      await loadSample(user)
       expect(screen.getByRole('button', { name: 'Closing remarks, 17:35 to 17:45, Beginner + Intermediate' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /^Build with Gemma 4, 17:05 to 17:35, Beginner$/ })).toBeInTheDocument()
     })
@@ -293,29 +338,29 @@ describe('Editor', () => {
     it('cover the whole app: event text, branding and table edits as well as the board', async () => {
       const user = userEvent.setup()
       render(<App />)
-      const undoButton = screen.getByRole('button', { name: 'Undo' })
-      const redoButton = screen.getByRole('button', { name: 'Redo' })
-      expect(undoButton).toBeDisabled()
-      expect(redoButton).toBeDisabled()
+      const undo = undoButton()
+      const redo = redoButton()
+      expect(undo).toBeDisabled()
+      expect(redo).toBeDisabled()
       const title = screen.getByLabelText('Event title')
       await user.clear(title)
       await user.type(title, 'Renamed event')
-      expect(undoButton).toBeEnabled()
-      await user.click(undoButton) // typing is one step
+      expect(undo).toBeEnabled()
+      await user.click(undo) // typing is one step
       expect(title).toHaveValue('Untitled event')
-      expect(redoButton).toBeEnabled()
-      await user.click(redoButton)
+      expect(redo).toBeEnabled()
+      await user.click(redo)
       expect(title).toHaveValue('Renamed event')
       // A table edit.
       await user.click(screen.getByRole('button', { name: 'Table' }))
       await user.click(screen.getByRole('button', { name: '+ Add row' }))
       expect(count('rows')).toBe(1)
-      await user.click(undoButton)
+      await user.click(undo)
       expect(count('rows')).toBe(0)
-      await user.click(undoButton) // the mode switch
+      await user.click(undo) // the mode switch
       expect(screen.getByRole('button', { name: 'Track grid' })).toHaveAttribute('aria-pressed', 'true')
       // Branding: the logo height / colours go through the same history.
-      await user.click(screen.getByRole('button', { name: 'Redo' }))
+      await user.click(redo)
       expect(screen.getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true')
     })
 
@@ -338,9 +383,9 @@ describe('Editor', () => {
     it('New, Open and the sample replace the schedule as one undoable step', async () => {
       const user = userEvent.setup()
       render(<App />)
-      await user.click(screen.getByRole('button', { name: 'Load sample' }))
+      await loadSample(user)
       expect(count('items')).toBe(12)
-      await user.click(screen.getByRole('button', { name: 'Undo' }))
+      await user.click(undoButton())
       expect(count('items')).toBe(0)
     })
   })
@@ -399,36 +444,71 @@ describe('Editor', () => {
     await user.click(screen.getByRole('button', { name: 'Insert row after row 1' }))
     expect(count('rows')).toBe(3)
     expect(screen.getByLabelText('Row 2 start')).toHaveValue('09:30')
-    await user.click(screen.getByRole('button', { name: 'Move row 1 down' }))
+    screen.getByRole('button', { name: 'Drag to reorder row 1' }).focus()
+    await user.keyboard('{Alt>}{ArrowDown}{/Alt}')
     expect(screen.getByLabelText('Row 1 start')).toHaveValue('09:30')
+    // Removing is undoable, so there is no confirmation: a toast offers Undo.
     await user.click(screen.getByRole('button', { name: 'Remove row 3' }))
     expect(count('rows')).toBe(2)
+    await user.click(within(screen.getByRole('status', { name: 'Notification' })).getByRole('button', { name: 'Undo' }))
+    expect(count('rows')).toBe(3)
   })
 
-  it('removing a column with items asks for confirmation', async () => {
+  it('+ Track adds a track and starts renaming it; the new name shows in the preview', async () => {
     const user = userEvent.setup()
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Load sample' }))
-    await user.click(screen.getByRole('button', { name: 'Remove column 2' }))
-    expect(confirm).toHaveBeenCalledTimes(1)
     expect(count('columns')).toBe(2)
-    confirm.mockReturnValue(true)
-    await user.click(screen.getByRole('button', { name: 'Remove column 2' }))
+    await user.click(screen.getByRole('button', { name: '+ Track' }))
+    expect(count('columns')).toBe(3)
+    const name = screen.getByLabelText('Track 3 name')
+    expect(name).toHaveFocus()
+    await user.clear(name)
+    await user.type(name, 'Workshops{Enter}')
+    expect(screen.getByText('Workshops')).toBeInTheDocument()
+    expect(preview()).toContain('Workshops')
+  })
+
+  it('double-clicking a track header renames it in place (Esc cancels)', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const header = () => document.querySelector('.board-head') as HTMLElement
+    await user.dblClick(header())
+    const name = screen.getByLabelText('Track 1 name')
+    await user.clear(name)
+    await user.type(name, 'Beginner{Enter}')
+    expect(preview()).toContain('Beginner')
+    await user.dblClick(header())
+    await user.type(screen.getByLabelText('Track 1 name'), 'xyz{Escape}')
+    expect(screen.queryByLabelText('Track 1 name')).not.toBeInTheDocument()
+    expect(header()).toHaveTextContent('Beginner')
+    expect(header()).not.toHaveTextContent('xyz')
+  })
+
+  it('deleting a track needs no confirmation: its sessions go, and Undo brings everything back', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await loadSample(user)
+    await user.click(screen.getByRole('button', { name: 'Track options: Intermediate' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Delete track' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(count('columns')).toBe(1)
     expect(count('items')).toBe(9) // the 3 Intermediate-only sessions go; shared items shrink to Beginner
-    confirm.mockRestore()
+    const toast = screen.getByRole('status', { name: 'Notification' })
+    expect(toast).toHaveTextContent('Track deleted')
+    await user.click(within(toast).getByRole('button', { name: 'Undo' }))
+    expect(count('columns')).toBe(2)
+    expect(count('items')).toBe(12)
   })
 
-  it('column controls reorder and recolour', async () => {
+  it('the track menu recolours a track', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Move column 1 down' }))
-    const names = screen.getAllByLabelText(/^Column \d name$/).map((el) => (el as HTMLInputElement).value)
-    expect(names).toEqual(['Track 2', 'Track 1'])
-    expect(screen.getByRole('button', { name: 'Move column 1 up' })).toBeDisabled()
-    const group = screen.getByRole('heading', { name: 'Columns' }).closest('section') as HTMLElement
-    expect(within(group).getByLabelText('Column 1 color')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Track options: Track 1' }))
+    await user.click(screen.getByRole('button', { name: 'Colour #d93025' }))
+    expect(preview()).toContain('#d93025')
+    expect(screen.getByRole('button', { name: 'Colour #d93025' })).toHaveAttribute('aria-pressed', 'true')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
   describe('branding panel', () => {
@@ -438,6 +518,7 @@ describe('Editor', () => {
     it('uploads a logo as a data URI, shows it in the preview, and removes it', async () => {
       const user = userEvent.setup()
       render(<App />)
+      await openSection(user, 'Branding')
       expect(screen.getByRole('button', { name: 'Remove logo' })).toBeDisabled()
       await user.upload(screen.getByLabelText('Logo file'), png(200))
       await waitFor(() => expect(preview()).toContain('<img class="logo" src="data:image/png;base64,'))
@@ -450,6 +531,7 @@ describe('Editor', () => {
     it('rejects a logo over 512 KB or of the wrong type with an inline error', async () => {
       const user = userEvent.setup({ applyAccept: false })
       render(<App />)
+      await openSection(user, 'Branding')
       await user.upload(screen.getByLabelText('Logo file'), png(512 * 1024 + 1))
       expect(await screen.findByRole('alert')).toHaveTextContent(/too large/i)
       expect(preview()).not.toContain('class="logo"')
@@ -464,6 +546,7 @@ describe('Editor', () => {
     it('sets the logo height within 16-120 only', async () => {
       const user = userEvent.setup()
       render(<App />)
+      await openSection(user, 'Branding')
       const height = screen.getByLabelText('Logo height (px)')
       expect(height).toHaveValue('40')
       await user.clear(height)
@@ -478,6 +561,7 @@ describe('Editor', () => {
     it('edits colours, resets them, and toggles custom dark colours', async () => {
       const user = userEvent.setup()
       render(<App />)
+      await openSection(user, 'Branding')
       fireEvent.change(screen.getByLabelText('Primary color'), { target: { value: '#123456' } })
       expect(preview()).toContain('--primary:#123456')
       await user.click(screen.getByRole('button', { name: 'Reset to defaults' }))
@@ -498,6 +582,7 @@ describe('Editor', () => {
     it('theme select sets data-theme; the preview toggle only shows for auto', async () => {
       const user = userEvent.setup()
       render(<App />)
+      await openSection(user, 'Branding')
       const htmlTag = () => /<html[^>]*>/.exec(preview())?.[0] ?? ''
       expect(screen.getByLabelText('Theme')).toHaveValue('auto')
       expect(htmlTag()).not.toContain('data-theme')
@@ -518,6 +603,7 @@ describe('Editor', () => {
     it('a web font preset adds its family and a stylesheet link', async () => {
       const user = userEvent.setup()
       render(<App />)
+      await openSection(user, 'Branding')
       expect(preview()).not.toContain('<link')
       await user.selectOptions(screen.getByLabelText('Display font'), 'cairo')
       expect(screen.getByLabelText('Web fonts (Google Fonts)')).toHaveValue('Cairo')
@@ -528,6 +614,7 @@ describe('Editor', () => {
     it('rejects invalid web font names on blur and keeps the list', async () => {
       const user = userEvent.setup()
       render(<App />)
+      await openSection(user, 'Branding')
       const field = screen.getByLabelText('Web fonts (Google Fonts)')
       await user.type(field, 'Inter, Bad;Name')
       expect(field).toHaveAttribute('aria-invalid', 'true')
@@ -543,6 +630,7 @@ describe('Editor', () => {
     it('motion presets add animation css, and Replay remounts the preview', async () => {
       const user = userEvent.setup()
       render(<App />)
+      await openSection(user, 'Branding')
       expect(preview()).not.toContain('animation')
       await user.selectOptions(screen.getByLabelText('Motion'), 'stagger')
       expect(preview()).toContain('animation-delay')
@@ -559,7 +647,7 @@ describe('Editor', () => {
     it('Arabic (Egypt) gives a right-to-left Arabic page', async () => {
       const user = userEvent.setup()
       render(<App />)
-      await user.click(screen.getByRole('button', { name: 'Load sample' }))
+      await loadSample(user)
       expect(preview()).toContain('<html lang="en-GB" dir="ltr"')
       await user.selectOptions(screen.getByLabelText('Language'), 'ar-EG')
       expect(preview()).toContain('<html lang="ar-EG" dir="rtl"')
@@ -572,7 +660,7 @@ describe('Editor', () => {
     it('Time format switches to 12-hour', async () => {
       const user = userEvent.setup()
       render(<App />)
-      await user.click(screen.getByRole('button', { name: 'Load sample' }))
+      await loadSample(user)
       await user.selectOptions(screen.getByLabelText('Language'), 'en-US')
       await user.selectOptions(screen.getByLabelText('Time format'), '12h')
       expect(preview()).toMatch(/1:30(&nbsp;|\s|\u00a0)PM/)
@@ -599,7 +687,7 @@ describe('Editor', () => {
 
     it('every free-text field is dir="auto"', () => {
       render(<App />)
-      for (const label of ['Event title', 'Title highlight', 'Venue', 'Status', 'Notes', 'Column 1 name']) {
+      for (const label of ['Event title', 'Title highlight', 'Venue', 'Status', 'Notes']) {
         expect(screen.getByLabelText(label), label).toHaveAttribute('dir', 'auto')
       }
     })
@@ -626,7 +714,6 @@ describe('Editor', () => {
       expect(grid).toHaveAttribute('aria-pressed', 'false')
       expect(screen.getByRole('heading', { name: 'Table' })).toBeInTheDocument()
       expect(screen.queryByRole('heading', { name: 'Grid' })).not.toBeInTheDocument()
-      expect(screen.getByTestId('summary-mode')).toHaveTextContent('table')
       expect(count('columns')).toBe(3)
       expect(['Column 1 name', 'Column 2 name', 'Column 3 name'].map((l) => (screen.getByLabelText(l) as HTMLInputElement).value)).toEqual([
         'Session',
@@ -648,7 +735,7 @@ describe('Editor', () => {
     it('person cells use a speaker list and match speakers case-insensitively', async () => {
       const user = userEvent.setup()
       render(<App />)
-      await user.click(screen.getByRole('button', { name: 'Load sample' }))
+      await loadSample(user)
       await user.click(screen.getByRole('button', { name: 'Table' }))
       const person = screen.getByLabelText('Speaker for row 13:30')
       expect(person).toHaveAttribute('list')
@@ -689,20 +776,18 @@ describe('Editor', () => {
       expect(preview()).toContain('td data-label="Column 4" class="n">10:30</td>')
     })
 
-    it('add column, move and remove work on the table columns', async () => {
+    it('add column, move and remove work on the table columns (removing is undoable)', async () => {
       const user = await openTable()
       await user.click(screen.getByRole('button', { name: 'Move column 2 up' }))
       expect(['Column 1 name', 'Column 2 name'].map((l) => (screen.getByLabelText(l) as HTMLInputElement).value)).toEqual(['Speaker', 'Session'])
       await user.type(screen.getByLabelText('Session for row 09:00'), 'Keep?')
-      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
       await user.click(screen.getByRole('button', { name: 'Remove column 2' }))
-      expect(confirm).toHaveBeenCalledTimes(1)
-      expect(count('columns')).toBe(3)
-      confirm.mockReturnValue(true)
-      await user.click(screen.getByRole('button', { name: 'Remove column 2' }))
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument() // Undo takes it back, so nothing asks
       expect(count('columns')).toBe(2)
       expect(preview()).not.toContain('Keep?')
-      confirm.mockRestore()
+      await user.click(within(screen.getByRole('status', { name: 'Notification' })).getByRole('button', { name: 'Undo' }))
+      expect(count('columns')).toBe(3)
+      expect(screen.getByLabelText('Session for row 09:00')).toHaveValue('Keep?')
     })
 
     it('rows: add, times and notes', async () => {
@@ -722,7 +807,7 @@ describe('Editor', () => {
     it('switching back to the grid keeps items and cells, and does not duplicate columns', async () => {
       const user = userEvent.setup()
       render(<App />)
-      await user.click(screen.getByRole('button', { name: 'Load sample' }))
+      await loadSample(user)
       await user.click(screen.getByRole('button', { name: 'Table' }))
       expect(count('rows')).toBe(9) // first switch: one row per grid slot
       await user.type(screen.getByLabelText('Session for row 13:30'), 'Kept cell')

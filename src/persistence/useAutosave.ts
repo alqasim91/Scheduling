@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Schedule } from '../model/schema.ts'
 import { parseSchedule } from '../model/validate.ts'
 
@@ -29,9 +29,11 @@ export function loadAutosaved(key: string): Schedule | null {
  * Pending writes are flushed on unmount and on `beforeunload`. The initial value
  * is not written; only changes are.
  */
-export function useAutosave(key: string, value: Schedule, delayMs = 500): void {
+export function useAutosave(key: string, value: Schedule, delayMs = 500): 'saved' | 'saving' {
   const latest = useRef({ key, value })
   const saved = useRef(value)
+  // What was last written (state, so the status can be shown); the ref above is what flush compares.
+  const [written, setWritten] = useState(value)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Writes the latest value if it has not been written yet. Only touches refs.
@@ -46,6 +48,7 @@ export function useAutosave(key: string, value: Schedule, delayMs = 500): void {
       // Quota exceeded or storage unavailable: autosave is best-effort.
     }
     saved.current = v
+    setWritten(v)
   }, [])
 
   useEffect(() => {
@@ -62,4 +65,6 @@ export function useAutosave(key: string, value: Schedule, delayMs = 500): void {
       flush()
     }
   }, [flush])
+
+  return written === value ? 'saved' : 'saving'
 }

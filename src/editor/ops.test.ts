@@ -13,6 +13,10 @@ import {
   addColumn,
   addItem,
   addRow,
+  addSpeaker,
+  updateSpeaker,
+  removeSpeaker,
+  moveRowTo,
   duplicateItem,
   insertRowAfter,
   moveColumn,
@@ -865,5 +869,78 @@ describe('column ops in table mode', () => {
     const tableMoved = moveColumn(s, s.columns[3]?.id as string, -1)
     expect(tableMoved.columns.map((c) => c.name)).toEqual(['Beginner', 'Speaker', 'Intermediate', 'Session', 'Tag'])
     expect(trackColumns(tableMoved)).toEqual(trackColumns(s))
+  })
+})
+
+describe('moveRowTo', () => {
+  it('moves a table row to a position', () => {
+    const s = grid()
+    expect(moveRowTo(s, 'r1', 2).rows.map((r) => r.id)).toEqual(['r2', 'r3', 'r1', 'r4'])
+    expect(moveRowTo(s, 'r4', 0).rows.map((r) => r.id)).toEqual(['r4', 'r1', 'r2', 'r3'])
+  })
+
+  it('refuses no-ops, bad positions and unknown rows', () => {
+    const s = grid()
+    expect(moveRowTo(s, 'r1', 0)).toBe(s)
+    expect(moveRowTo(s, 'r1', 4)).toBe(s)
+    expect(moveRowTo(s, 'r1', -1)).toBe(s)
+    expect(moveRowTo(s, 'r1', 1.5)).toBe(s)
+    expect(moveRowTo(s, 'nope', 1)).toBe(s)
+  })
+})
+
+describe('speakers', () => {
+  const base = () => addSpeaker(addSpeaker(grid(), { id: 'ada', name: 'Ada Lovelace', role: 'Engineer' }), { id: 'grace', name: 'Grace Hopper' })
+
+  it('addSpeaker appends with a default colour, and refuses duplicates, bad colours and non-image photos', () => {
+    const s = base()
+    expect(s.speakers.map((x) => [x.id, x.name, x.role])).toEqual([['ada', 'Ada Lovelace', 'Engineer'], ['grace', 'Grace Hopper', '']])
+    expect(s.speakers[0]?.color).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(s.speakers[0]?.color).not.toBe(s.speakers[1]?.color)
+    expectValid(s)
+    expect(addSpeaker(s, { id: 'ada' })).toBe(s)
+    expect(addSpeaker(s, { color: 'red' })).toBe(s)
+    expect(addSpeaker(s, { photo: 'https://example.com/a.png' })).toBe(s)
+    expect(addSpeaker(s, { name: 'Pic', photo: 'data:image/png;base64,AA==' }).speakers.at(-1)?.photo).toBe('data:image/png;base64,AA==')
+  })
+
+  it('updateSpeaker edits role, colour and photo (null removes it), and refuses bad input and no-ops', () => {
+    const s = base()
+    const next = updateSpeaker(updateSpeaker(s, 'ada', { role: 'Mathematician', color: '#112233' }), 'ada', { photo: 'data:image/png;base64,AA==' })
+    expect(next.speakers[0]).toMatchObject({ role: 'Mathematician', color: '#112233', photo: 'data:image/png;base64,AA==' })
+    expect('photo' in (updateSpeaker(next, 'ada', { photo: null }).speakers[0] ?? {})).toBe(false)
+    expect(updateSpeaker(s, 'ada', { color: 'nope' })).toBe(s)
+    expect(updateSpeaker(s, 'ada', { photo: 'http://x' })).toBe(s)
+    expect(updateSpeaker(s, 'nope', { name: 'x' })).toBe(s)
+    expect(updateSpeaker(s, 'ada', { name: 'Ada Lovelace' })).toBe(s)
+  })
+
+  it('renaming a speaker renames them in sessions and table person cells that used the old name', () => {
+    let s = withItem(base(), { id: 'x', columnIds: ['A'], speaker: 'ada lovelace' })
+    s = withItem(s, { id: 'y', columnIds: ['B'], speaker: 'Grace Hopper' })
+    s = setMode(s, 'table')
+    const person = tableColumns(s).find((c) => c.type === 'person')!.id
+    s = setCell(s, 'r1', person, 'Ada Lovelace')
+    s = setCell(s, 'r2', person, 'Someone else')
+    const next = updateSpeaker(s, 'ada', { name: 'Ada King' })
+    expect(next.speakers[0]?.name).toBe('Ada King')
+    expect(item(next, 'x').speaker).toBe('Ada King')
+    expect(item(next, 'y').speaker).toBe('Grace Hopper')
+    expect(next.rows[0]?.cells?.[person]).toBe('Ada King')
+    expect(next.rows[1]?.cells?.[person]).toBe('Someone else')
+    expectValid(next)
+  })
+
+  it('renaming a speaker with no name yet touches nothing else', () => {
+    const s = withItem(addSpeaker(grid(), { id: 'blank', name: '' }), { id: 'x', columnIds: ['A'], speaker: '' })
+    expect(updateSpeaker(s, 'blank', { name: 'New' }).items).toBe(s.items)
+  })
+
+  it('removeSpeaker removes only the list entry; sessions keep their text', () => {
+    const s = withItem(base(), { id: 'x', columnIds: ['A'], speaker: 'Ada Lovelace' })
+    const next = removeSpeaker(s, 'ada')
+    expect(next.speakers.map((x) => x.id)).toEqual(['grace'])
+    expect(item(next, 'x').speaker).toBe('Ada Lovelace')
+    expect(removeSpeaker(s, 'nope')).toBe(s)
   })
 })

@@ -23,6 +23,7 @@ import {
 } from './branding.ts'
 import { DraftInput } from './DraftInput.tsx'
 import { LOGO_TYPES, readFileAsDataUrl, validateLogoFile } from './logoFile.ts'
+import { Section } from '../ui/Section.tsx'
 import type { Apply } from './types.ts'
 
 interface Props {
@@ -80,9 +81,7 @@ export function BrandingPanel({ schedule, apply }: Props) {
   }
 
   return (
-    <section className="panel" aria-labelledby="panel-branding">
-      <h2 id="panel-branding">Branding</h2>
-
+    <Section title="Branding">
       <fieldset className="group">
         <legend>Logo</legend>
         {branding.logo && <img className="logo-preview" src={branding.logo} alt="Logo preview" />}
@@ -235,6 +234,6 @@ export function BrandingPanel({ schedule, apply }: Props) {
         </label>
         <small className="field__hint">Motion is skipped for viewers who prefer reduced motion, and when printing.</small>
       </fieldset>
-    </section>
+    </Section>
   )
 }

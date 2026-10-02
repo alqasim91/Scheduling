@@ -216,7 +216,7 @@ test.describe('moving sessions', () => {
     await page.mouse.up()
     await expect(board.preview()).toBeHidden()
     await expect(board.card('Alpha talk')).toHaveAccessibleName('Alpha talk, 09:00 to 10:00, Alpha')
-    await expect(page.locator('.board-card.is-dragging')).toHaveCount(0)
+    await expect(page.locator('.board-card.is-moving')).toHaveCount(0)
   })
 
   test('a tiny movement is a click, not a move', async ({ page }) => {
@@ -332,7 +332,7 @@ test.describe('editing, deleting, undoing', () => {
     await expect(dialog).toBeVisible()
     await dialog.getByLabel('Title').fill('Renamed')
     await expect.poll(() => board.previewText()).toContain('Renamed')
-    await dialog.getByLabel('Speaker').fill('Grace Hopper')
+    await dialog.getByRole('combobox', { name: 'Speaker' }).fill('Grace Hopper')
     await dialog.getByRole('button', { name: 'Highlight' }).click()
     await expect.poll(() => board.previewText()).toContain('Grace Hopper')
     await expect(page.frameLocator('iframe[title="Preview"]').locator('.ev.key')).toHaveCount(1)
@@ -356,10 +356,12 @@ test.describe('editing, deleting, undoing', () => {
     await openApp(page, seedSchedule({ items, speakers: SPEAKERS }))
     const board = new Board(page)
     await board.card('First').dblclick()
-    const speaker = page.getByRole('dialog', { name: 'Edit session' }).getByLabel('Speaker')
-    await expect(page.locator('datalist option')).toHaveCount(2)
+    const speaker = page.getByRole('dialog', { name: 'Edit session' }).getByRole('combobox', { name: 'Speaker' })
+    await speaker.click()
+    await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(2)
     await speaker.fill('Someone New')
-    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape') // closes the suggestions
+    await page.keyboard.press('Escape') // closes the editor
     await expect(board.card('First')).toBeVisible()
     await expect.poll(() => board.previewText()).toContain('Someone New')
   })
@@ -640,8 +642,10 @@ test.describe('files', () => {
     await page.mouse.up()
     await expect(board.card('Original')).toHaveAccessibleName('Original, 09:20 to 10:20, Beta')
 
-    await page.getByLabel('Embed fonts for offline use').uncheck()
-    const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save HTML' }).click()])
+    await page.getByRole('button', { name: 'Export' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Export' })
+    await expect(dialog.getByLabel('Embed fonts for offline use')).toBeDisabled() // nothing to embed in this schedule
+    const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Export HTML' }).click()])
     const path = await download.path()
     expect(download.suggestedFilename()).toMatch(/\.html$/)
 

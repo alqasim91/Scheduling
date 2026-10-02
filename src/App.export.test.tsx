@@ -7,7 +7,7 @@ import { printHtml } from './export/printHtml.ts'
 import { createEmptySchedule } from './model/defaults.ts'
 import { downloadText } from './persistence/files.ts'
 import { cairoSample } from './samples/cairo.ts'
-import { startBlank } from './test/helpers.ts'
+import { exportAs, startBlank } from './test/helpers.ts'
 
 vi.mock('./persistence/files.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./persistence/files.ts')>()),
@@ -44,8 +44,9 @@ describe('Save HTML', () => {
     vi.stubGlobal('fetch', fetchMock)
     const user = userEvent.setup()
     render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Export' }))
     expect(screen.getByLabelText('Embed fonts for offline use')).toBeChecked()
-    await user.click(screen.getByRole('button', { name: 'Save HTML' }))
+    await user.click(screen.getByRole('button', { name: 'Export HTML' }))
     await waitFor(() => expect(downloadText).toHaveBeenCalledTimes(1))
     const [name, html, mime] = lastDownload()
     expect(name).toBe('google-for-developers-day-cairo.html')
@@ -53,7 +54,7 @@ describe('Save HTML', () => {
     expect(html).toContain('id="schedule-data"')
     expect(html).toContain('data:font/woff2;base64,AQID')
     expect(html).not.toContain('<link')
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByRole('status', { name: 'Notice' })).not.toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalled()
   })
 
@@ -61,14 +62,14 @@ describe('Save HTML', () => {
     vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))))
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Save HTML' }))
+    await exportAs(user, 'html')
     await waitFor(() => expect(downloadText).toHaveBeenCalledTimes(1))
     expect(lastDownload()[1]).toContain('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?')
-    const notice = screen.getByRole('status')
+    const notice = screen.getByRole('status', { name: 'Notice' })
     expect(notice).toHaveTextContent(/Fonts were not embedded/)
     expect(notice).toHaveTextContent(/Failed to fetch/)
     await user.click(screen.getByRole('button', { name: 'Dismiss' }))
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByRole('status', { name: 'Notice' })).not.toBeInTheDocument()
   })
 
   it('skips embedding when the checkbox is off', async () => {
@@ -76,12 +77,11 @@ describe('Save HTML', () => {
     vi.stubGlobal('fetch', fetchMock)
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByLabelText('Embed fonts for offline use'))
-    await user.click(screen.getByRole('button', { name: 'Save HTML' }))
+    await exportAs(user, 'html', { embed: false })
     await waitFor(() => expect(downloadText).toHaveBeenCalledTimes(1))
     expect(fetchMock).not.toHaveBeenCalled()
     expect(lastDownload()[1]).toContain('<link')
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByRole('status', { name: 'Notice' })).not.toBeInTheDocument()
   })
 
   it('skips embedding when the schedule has no web fonts', async () => {
@@ -90,7 +90,10 @@ describe('Save HTML', () => {
     const user = userEvent.setup()
     render(<App />)
     await startBlank(user)
-    await user.click(screen.getByRole('button', { name: 'Save HTML' }))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    // Nothing to embed: the option is there but disabled.
+    expect(screen.getByLabelText('Embed fonts for offline use')).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Export HTML' }))
     await waitFor(() => expect(downloadText).toHaveBeenCalledTimes(1))
     expect(fetchMock).not.toHaveBeenCalled()
     expect(lastDownload()[0]).toBe('untitled-event.html')
@@ -102,7 +105,7 @@ describe('Export PDF', () => {
   it('prints the export page through the hidden iframe helper', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Export PDF' }))
+    await exportAs(user, 'pdf')
     await waitFor(() => expect(printHtml).toHaveBeenCalledTimes(1))
     const html = vi.mocked(printHtml).mock.calls[0]?.[0] ?? ''
     expect(html).toContain('Build with Gemma 4')
@@ -113,8 +116,8 @@ describe('Export PDF', () => {
     vi.mocked(printHtml).mockRejectedValueOnce(new Error('blocked'))
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Export PDF' }))
-    expect(await screen.findByRole('status')).toHaveTextContent(/print dialog.*blocked/)
+    await exportAs(user, 'pdf')
+    expect(await screen.findByRole('status', { name: 'Notice' })).toHaveTextContent(/print dialog.*blocked/)
   })
 })
 
@@ -132,7 +135,7 @@ describe('Open an exported HTML file', () => {
     const exported = buildExportHtml({ ...cairoSample, event: { ...cairoSample.event, title: 'Round trip </script>' } })
     await user.upload(screen.getByTestId('open-file'), new File([exported], 'event.html', { type: 'text/html' }))
     await waitFor(() => expect(screen.getByLabelText('Event title')).toHaveValue('Round trip </script>'))
-    expect(screen.getByTestId('summary-items')).toHaveTextContent('12')
+    expect(document.querySelectorAll('.board-card')).toHaveLength(12)
   })
 
   it('says so when an HTML file has no schedule data', async () => {

@@ -500,3 +500,19 @@ describe('slots derived from items', () => {
     expect(doc.querySelector('.rng')?.textContent).toBe('08:00 – 08:30')
   })
 })
+
+describe('hideItems', () => {
+  it('leaves the listed sessions out of the page (and only then)', () => {
+    const html = renderDocument(cairoSample, { hideItems: ['item-b4'] })
+    expect(html).not.toContain('Build with Gemma 4')
+    expect(html).toContain('Closing remarks')
+    expect(renderDocument(cairoSample, { hideItems: [] })).toBe(renderDocument(cairoSample))
+    expect(renderDocument(cairoSample)).toContain('Build with Gemma 4')
+  })
+
+  it('does not change the schedule it was given', () => {
+    const before = JSON.stringify(cairoSample)
+    renderDocument(cairoSample, { hideItems: ['item-b4'] })
+    expect(JSON.stringify(cairoSample)).toBe(before)
+  })
+})

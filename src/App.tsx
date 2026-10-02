@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Editor } from './editor/Editor.tsx'
-import { useHistory } from './editor/useHistory.ts'
+import { Editor, type ViewMode } from './editor/Editor.tsx'
+import { useHistory, type History } from './editor/useHistory.ts'
 import type { Schedule } from './model/schema.ts'
 import { buildExportHtml } from './export/exportHtml.ts'
 import { embedFonts } from './export/embedFonts.ts'
@@ -10,13 +10,18 @@ import { importFileText } from './persistence/importFile.ts'
 import { serializeSchedule } from './persistence/json.ts'
 import { STORAGE_KEY, readAutosaved, useAutosave } from './persistence/useAutosave.ts'
 import { cairoSample } from './samples/cairo.ts'
+import { ExportDialog, type ExportFormat } from './shell/ExportDialog.tsx'
+import { TopBar } from './shell/TopBar.tsx'
 import { sniffTemplateText } from './templates/file.ts'
 import { Gallery } from './templates/Gallery.tsx'
 import { ImportTemplateDialog } from './templates/ImportTemplateDialog.tsx'
-import { canonical, instantiate } from './templates/instantiate.ts'
+import { instantiate } from './templates/instantiate.ts'
 import { SaveTemplateDialog } from './templates/SaveTemplateDialog.tsx'
 import type { TemplateContent } from './templates/types.ts'
-import { createEmptySchedule } from './model/defaults.ts'
+import { ConfirmProvider } from './ui/Confirm.tsx'
+import { NotifyProvider } from './ui/Notify.tsx'
+import { useNotify } from './ui/notifyContext.ts'
+import { NARROW_PX, SPLIT_PX, useWidth } from './ui/useWidth.ts'
 
 const MAX_SHOWN_ERRORS = 20
 
@@ -27,20 +32,37 @@ export default function App() {
     return { schedule: saved?.schedule ?? structuredClone(cairoSample), warnings: saved?.warnings ?? [] }
   })
   const history = useHistory(initial.schedule)
+  return (
+    <ConfirmProvider>
+      <NotifyProvider watch={history.schedule}>
+        <Shell initial={initial} history={history} />
+      </NotifyProvider>
+    </ConfirmProvider>
+  )
+}
+
+function Shell({ initial, history }: { initial: { schedule: Schedule; warnings: string[] }; history: History }) {
   const schedule = history.schedule
+  const notify = useNotify()
   /** Replace the whole schedule (New, Open, sample): one undoable step. */
   const replaceSchedule = (next: Schedule) => history.set(() => next, { key: null })
   const [errors, setErrors] = useState<string[]>([])
   /** Notes from migrating an opened file; shown once until dismissed. */
   const [warnings, setWarnings] = useState<string[]>(initial.warnings)
-  const [embed, setEmbed] = useState(true)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
-  const [dialog, setDialog] = useState<'gallery' | 'save' | null>(null)
+  const [dialog, setDialog] = useState<'gallery' | 'save' | 'export' | null>(null)
   const [pendingTemplate, setPendingTemplate] = useState<(TemplateContent & { warnings: string[] }) | null>(null)
+  const [viewChoice, setViewChoice] = useState<ViewMode | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
 
-  useAutosave(STORAGE_KEY, schedule)
+  const width = useWidth()
+  const narrow = width < NARROW_PX
+  // Wide screens start in Split, medium ones in Edit; narrow ones have no split, the preview is a tab.
+  const view: ViewMode = narrow ? (viewChoice === 'preview' ? 'preview' : 'edit') : (viewChoice ?? (width >= SPLIT_PX ? 'split' : 'edit'))
+
+  const status = useAutosave(STORAGE_KEY, schedule)
 
   // ⌘/Ctrl+Z undoes, ⇧⌘Z and Ctrl+Y redo, wherever the focus is.
   const { undo, redo } = history
@@ -67,19 +89,23 @@ export default function App() {
     }
   }, [initial])
 
-  /** Replace the schedule with one from the gallery, confirming first if there is something to lose. */
-  function handleChoose(next: Schedule) {
-    const untouched = JSON.stringify(canonical(schedule)) === JSON.stringify(canonical(createEmptySchedule()))
-    if (
-      !untouched &&
-      !window.confirm('Replace the current schedule? Unsaved changes are kept only in autosave until replaced.')
-    ) {
-      return
+  // Escape closes the settings drawer.
+  useEffect(() => {
+    if (!drawerOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawerOpen(false)
     }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [drawerOpen])
+
+  /** Replace the schedule with one from the gallery. Undo brings the old one back, so no asking. */
+  function handleChoose(next: Schedule) {
     replaceSchedule(next)
     setErrors([])
     setWarnings([])
     setDialog(null)
+    notify({ text: 'Schedule replaced', action: { label: 'Undo', run: history.undo } })
   }
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
@@ -104,6 +130,7 @@ export default function App() {
         replaceSchedule(result.value)
         setErrors([])
         setWarnings(result.warnings)
+        notify({ text: `Opened ${file.name}`, action: { label: 'Undo', run: history.undo } })
       } else {
         setErrors(result.errors)
       }
@@ -119,7 +146,7 @@ export default function App() {
   }
 
   /** Save the page as one HTML file, embedding Google Fonts for offline use when asked and possible. */
-  async function handleSaveHtml() {
+  async function handleSaveHtml(embed: boolean) {
     setNotice(null)
     let fontCss: string | undefined
     if (embed && (schedule.branding.fonts.webFonts?.length ?? 0) > 0) {
@@ -149,62 +176,48 @@ export default function App() {
     }
   }
 
-  function handleLoadSample() {
-    replaceSchedule(structuredClone(cairoSample))
-    setErrors([])
-    setWarnings([])
+  function handleExport(format: ExportFormat, embed: boolean) {
+    setDialog(null)
+    if (format === 'html') void handleSaveHtml(embed)
+    else void handleExportPdf()
   }
 
   const hiddenErrors = errors.length - MAX_SHOWN_ERRORS
 
   return (
     <div className="app">
-      <header className="toolbar">
-        <h1 className="toolbar__title">Schedule Builder</h1>
-        <button type="button" onClick={() => setDialog('gallery')}>
-          New…
-        </button>
-        <button type="button" onClick={() => fileInput.current?.click()}>
-          Open…
-        </button>
-        <button type="button" onClick={handleSave}>
-          Save JSON
-        </button>
-        <button type="button" onClick={history.undo} disabled={!history.canUndo} aria-keyshortcuts="Control+Z Meta+Z">
-          Undo
-        </button>
-        <button type="button" onClick={history.redo} disabled={!history.canRedo} aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y">
-          Redo
-        </button>
-        <button type="button" onClick={handleLoadSample}>
-          Load sample
-        </button>
-        <button type="button" onClick={() => setDialog('save')}>
-          Save as template…
-        </button>
-        <span className="toolbar__sep" aria-hidden="true" />
-        <button type="button" onClick={handleSaveHtml} disabled={busy}>
-          Save HTML
-        </button>
-        <label className="toolbar__check">
-          <input type="checkbox" checked={embed} onChange={(e) => setEmbed(e.target.checked)} />
-          <span>Embed fonts for offline use</span>
-        </label>
-        <button type="button" onClick={handleExportPdf}>
-          Export PDF
-        </button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept=".json,.html,.htm,application/json,text/html"
-          hidden
-          data-testid="open-file"
-          onChange={handleFile}
-        />
-      </header>
+      <TopBar
+        onNew={() => setDialog('gallery')}
+        onOpen={() => fileInput.current?.click()}
+        onSaveJson={handleSave}
+        onSaveTemplate={() => setDialog('save')}
+        onUndo={history.undo}
+        onRedo={history.redo}
+        canUndo={history.canUndo}
+        canRedo={history.canRedo}
+        view={view}
+        narrow={narrow}
+        onView={(next) => {
+          setViewChoice(next)
+          setDrawerOpen(false)
+        }}
+        status={status}
+        onExport={() => setDialog('export')}
+        exporting={busy}
+        drawerOpen={drawerOpen}
+        onToggleDrawer={() => setDrawerOpen((open) => !open)}
+      />
+      <input
+        ref={fileInput}
+        type="file"
+        accept=".json,.html,.htm,application/json,text/html"
+        hidden
+        data-testid="open-file"
+        onChange={handleFile}
+      />
 
       {notice && (
-        <p role="status" className="notice">
+        <p role="status" aria-label="Notice" className="notice">
           <span>{notice}</span>
           <button type="button" onClick={() => setNotice(null)}>
             Dismiss
@@ -241,9 +254,24 @@ export default function App() {
         </div>
       )}
 
-      <Editor schedule={schedule} apply={history.set} undo={history.undo} rollbackTo={history.rollbackTo} />
+      <Editor
+        schedule={schedule}
+        apply={history.set}
+        undo={history.undo}
+        rollbackTo={history.rollbackTo}
+        view={view}
+        drawerOpen={drawerOpen}
+        onCloseDrawer={() => setDrawerOpen(false)}
+      />
 
       {dialog === 'gallery' && <Gallery onClose={() => setDialog(null)} onChoose={handleChoose} />}
+      {dialog === 'export' && (
+        <ExportDialog
+          canEmbedFonts={(schedule.branding.fonts.webFonts?.length ?? 0) > 0}
+          onClose={() => setDialog(null)}
+          onExport={handleExport}
+        />
+      )}
       {dialog === 'save' && (
         <SaveTemplateDialog
           schedule={schedule}

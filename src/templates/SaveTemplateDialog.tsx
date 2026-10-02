@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import type { Schedule } from '../model/schema.ts'
 import { downloadText } from '../persistence/files.ts'
 import { serializeTemplateFile, templateFilename } from './file.ts'
-import { Modal } from './Modal.tsx'
+import { Modal } from '../ui/Modal.tsx'
 import { saveUserTemplate } from './store.ts'
 import { stripContent } from './strip.ts'
 

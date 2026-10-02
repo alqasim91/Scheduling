@@ -53,6 +53,12 @@ describe('snap, minutesToY, yToMinutes', () => {
     expect(columnAt(-50, 100, 300, 3)).toBe(0)
     expect(columnAt(900, 100, 300, 3)).toBe(2)
     expect(columnAt(10, 0, 0, 3)).toBe(0)
+    // Right-to-left: the first column is at the right edge.
+    expect(columnAt(150, 100, 300, 3, true)).toBe(2)
+    expect(columnAt(250, 100, 300, 3, true)).toBe(1)
+    expect(columnAt(399, 100, 300, 3, true)).toBe(0)
+    expect(columnAt(900, 100, 300, 3, true)).toBe(0)
+    expect(columnAt(-50, 100, 300, 3, true)).toBe(2)
     expect(clamp(5, 0, 3)).toBe(3)
   })
 })

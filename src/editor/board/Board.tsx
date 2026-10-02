@@ -11,6 +11,7 @@ import {
 import { newId } from '../../model/ids.ts'
 import type { Schedule } from '../../model/schema.ts'
 import { toMinutes } from '../../model/time.ts'
+import { useNotify } from '../../ui/notifyContext.ts'
 import {
   addColumn,
   addItem,
@@ -43,11 +44,14 @@ import {
   yToMinutes,
   type Extent,
   type Preview,
+  type Range,
   type Zoom,
 } from './geometry.ts'
+import { LONG_PRESS_MS, TOUCH_SLOP_PX } from '../gesture.ts'
 import { ItemPopover } from './ItemPopover.tsx'
 import { layoutCards, type CardLayout } from './layout.ts'
 import { TrackHeader } from './TrackHeader.tsx'
+import { runGesture, type Pt } from '../gesture.ts'
 import './board.css'
 
 interface Props {
@@ -56,13 +60,15 @@ interface Props {
   undo: () => void
   /** Cancel a session that was just created: back to the schedule as it was before. */
   rollbackTo: (snapshot: Schedule) => void
+  /** Mirror the board (gutter and first track on the right) for right-to-left events. */
+  rtl: boolean
+  /** The id of a just-created session that has no title yet, or null. */
+  onUnnamedChange?: (id: string | null) => void
 }
 
+/** Appended to a repeated announcement so screen readers see a change. */
+const ZWSP = String.fromCharCode(0x200b)
 const ZOOM_KEY = 'schedule-builder:board-zoom'
-const TOAST_MS = 6000
-const EDGE_ZONE = 48
-const MAX_SCROLL_SPEED = 22
-
 function readZoom(): Zoom {
   try {
     const stored = window.localStorage.getItem(ZOOM_KEY)
@@ -73,134 +79,35 @@ function readZoom(): Zoom {
   return 'comfortable'
 }
 
-interface Pt {
-  x: number
-  y: number
-}
-
-interface GestureHandlers {
-  /** Pixels the pointer must travel before it counts as a drag (0 = immediately). */
-  threshold: number
-  update: (pt: Pt, dragging: boolean) => void
-  /** The pointer was released. `dragging` is false for a plain click. */
-  finish: (pt: Pt, dragging: boolean) => void
-  /** Esc, or the browser took the pointer away (touch scrolling): undo any visual effect. */
-  cancel: () => void
-}
-
-/**
- * Every pointer gesture goes through here: capture the pointer on `target`, call `update` while it
- * moves, auto-scroll the viewport near its edges, and end on release or cancel on Esc. Nothing is
- * committed to state in here; the handlers decide that on `finish`.
- */
-function runGesture(e: ReactPointerEvent, target: HTMLElement, viewport: HTMLElement | null, headerHeight: number, h: GestureHandlers) {
-  const pointerId = e.pointerId
-  let pt: Pt = { x: e.clientX, y: e.clientY }
-  const origin = pt
-  let dragging = h.threshold === 0
-  let raf = 0
-  let done = false
-  try {
-    target.setPointerCapture?.(pointerId)
-  } catch {
-    // The pointer may already be gone; the window listeners below still work.
-  }
-
-  const end = () => {
-    done = true
-    cancelAnimationFrame(raf)
-    target.removeEventListener('pointermove', onMove)
-    target.removeEventListener('pointerup', onUp)
-    target.removeEventListener('pointercancel', onCancel)
-    window.removeEventListener('keydown', onKey, true)
-    viewport?.removeEventListener('scroll', onScroll)
-    try {
-      target.releasePointerCapture?.(pointerId)
-    } catch {
-      // Already released.
-    }
-  }
-  const onMove = (ev: PointerEvent) => {
-    if (ev.pointerId !== pointerId) return
-    pt = { x: ev.clientX, y: ev.clientY }
-    if (!dragging && Math.hypot(pt.x - origin.x, pt.y - origin.y) > h.threshold) dragging = true
-    if (dragging) h.update(pt, true)
-  }
-  // Scrolling with the wheel mid-drag moves the board under a still pointer: refresh the preview.
-  const onScroll = () => {
-    if (dragging && !done) h.update(pt, true)
-  }
-  const onUp = (ev: PointerEvent) => {
-    if (ev.pointerId !== pointerId) return
-    pt = { x: ev.clientX, y: ev.clientY }
-    end()
-    h.finish(pt, dragging)
-  }
-  const onCancel = (ev: PointerEvent) => {
-    if (ev.pointerId !== pointerId) return
-    end()
-    h.cancel()
-  }
-  const onKey = (ev: KeyboardEvent) => {
-    if (ev.key !== 'Escape') return
-    ev.preventDefault()
-    ev.stopPropagation()
-    end()
-    h.cancel()
-  }
-  // Scroll the board while the pointer rests near an edge, re-running the preview each frame.
-  const loop = () => {
-    if (done) return
-    if (dragging && viewport) {
-      const rect = viewport.getBoundingClientRect()
-      const speed = (d: number) => Math.min(MAX_SCROLL_SPEED, (Math.max(0, d) / EDGE_ZONE) * MAX_SCROLL_SPEED)
-      const top = rect.top + headerHeight
-      let dy = 0
-      let dx = 0
-      if (pt.y < top + EDGE_ZONE) dy = -speed(top + EDGE_ZONE - pt.y)
-      else if (pt.y > rect.bottom - EDGE_ZONE) dy = speed(pt.y - (rect.bottom - EDGE_ZONE))
-      if (pt.x < rect.left + EDGE_ZONE) dx = -speed(rect.left + EDGE_ZONE - pt.x)
-      else if (pt.x > rect.right - EDGE_ZONE) dx = speed(pt.x - (rect.right - EDGE_ZONE))
-      if (dx !== 0 || dy !== 0) {
-        const before = { left: viewport.scrollLeft, top: viewport.scrollTop }
-        viewport.scrollLeft += dx
-        viewport.scrollTop += dy
-        if (viewport.scrollLeft !== before.left || viewport.scrollTop !== before.top) h.update(pt, true)
-      }
-    }
-    raf = requestAnimationFrame(loop)
-  }
-  target.addEventListener('pointermove', onMove)
-  target.addEventListener('pointerup', onUp)
-  target.addEventListener('pointercancel', onCancel)
-  window.addEventListener('keydown', onKey, true)
-  viewport?.addEventListener('scroll', onScroll, { passive: true })
-  raf = requestAnimationFrame(loop)
-}
-
 function trackLabel(schedule: Schedule, card: CardLayout): string {
   const tracks = trackColumns(schedule)
   const names = tracks.slice(card.first, card.last + 1).map((c) => c.name || 'Untitled track')
   return names.join(' + ')
 }
 
-interface Toast {
-  id: number
-  text: string
+/** Where a card with these extents sits inside the column area. */
+function cardBox(p: { first: number; last: number; start: number; end: number }, count: number, range: Range, ppm: number) {
+  const n = Math.max(1, count)
+  return {
+    insetInlineStart: `calc(${(p.first * 100) / n}% + 3px)`,
+    width: `calc(${((p.last - p.first + 1) * 100) / n}% - 6px)`,
+    top: `${minutesToY(p.start, range.start, ppm)}px`,
+    height: `${Math.max(2, (p.end - p.start) * ppm - 1)}px`,
+  }
 }
 
 /**
  * The calendar-style board: time runs down the page, tracks are columns, sessions are cards you
  * create (drag on empty space), move, and resize with the pointer or the keyboard.
  */
-export function Board({ schedule, apply, undo, rollbackTo }: Props) {
+export function Board({ schedule, apply, undo, rollbackTo, rtl, onUnnamedChange }: Props) {
+  const notify = useNotify()
   const [zoom, setZoom] = useState<Zoom>(readZoom)
   const [extra, setExtra] = useState({ before: 0, after: 0 })
   const [pickedId, setSelectedId] = useState<string | null>(null)
   const [openId, setEditingId] = useState<string | null>(null)
   const [pending, setPending] = useState<{ id: string; snapshot: Schedule } | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [toast, setToast] = useState<Toast | null>(null)
   const [announcement, setAnnouncement] = useState('')
 
   const tracks = useMemo(() => trackColumns(schedule), [schedule])
@@ -226,6 +133,7 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
   const colsRef = useRef<HTMLDivElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const previewLabelRef = useRef<HTMLSpanElement>(null)
+  const placeholderRef = useRef<HTMLDivElement>(null)
   const markerRef = useRef<HTMLDivElement>(null)
   const cardEls = useRef(new Map<string, HTMLElement>())
   const ignoreDown = useRef<Event | null>(null)
@@ -235,33 +143,22 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
   const announceCount = useRef(0)
 
   // What the gesture handlers read: always the latest render's values, never a stale closure.
-  const live = useRef({ schedule, ids, range, ppm, cards, selectedId, editingId, pending })
+  const live = useRef({ schedule, ids, range, ppm, cards, selectedId, editingId, pending, rtl })
   useLayoutEffect(() => {
-    live.current = { schedule, ids, range, ppm, cards, selectedId, editingId, pending }
+    live.current = { schedule, ids, range, ppm, cards, selectedId, editingId, pending, rtl }
   })
+
+  // The preview of the page leaves out a new session until it has a title.
+  const unnamed = pending && pending.id === editingId && schedule.items.some((i) => i.id === pending.id && i.title.trim() === '') ? pending.id : null
+  useEffect(() => {
+    onUnnamedChange?.(unnamed)
+  }, [unnamed, onUnnamedChange])
 
   const announce = useCallback((message: string) => {
     announceCount.current += 1
     // A trailing zero-width space makes a repeated message count as a change for screen readers.
-    setAnnouncement(announceCount.current % 2 === 0 ? `${message}\u200b` : message)
+    setAnnouncement(announceCount.current % 2 === 0 ? `${message}${ZWSP}` : message)
   }, [])
-
-  const toastBase = useRef<Schedule | null>(null)
-  const showToast = useCallback((text: string) => {
-    toastBase.current = null
-    setToast({ id: Date.now(), text })
-  }, [])
-  useEffect(() => {
-    if (!toast) return
-    const timer = window.setTimeout(() => setToast(null), TOAST_MS)
-    return () => window.clearTimeout(timer)
-  }, [toast])
-  // The toast's Undo takes back the deletion, so it goes away if anything else changes first.
-  useEffect(() => {
-    if (!toast) return
-    if (toastBase.current === null) toastBase.current = schedule
-    else if (toastBase.current !== schedule) setToast(null)
-  }, [toast, schedule])
 
   useEffect(() => {
     try {
@@ -292,28 +189,42 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
 
   /* ---------- previews (direct DOM writes, no React state while dragging) ---------- */
 
-  const showPreview = useCallback((p: Preview, kind: 'create' | 'move' | 'resize' = 'move') => {
+  const showPreview = useCallback((p: Preview, kind: 'create' | 'move' | 'resize') => {
     const el = previewRef.current
     const { ids: trackIds, range: r, ppm: scale } = live.current
     if (!el) return
-    const count = Math.max(1, trackIds.length)
+    const box = cardBox(p, trackIds.length, r, scale)
     el.style.display = 'block'
-    el.style.left = `calc(${(p.first * 100) / count}% + 3px)`
-    el.style.width = `calc(${((p.last - p.first + 1) * 100) / count}% - 6px)`
-    el.style.height = `${Math.max(2, (p.end - p.start) * scale)}px`
-    el.style.transform = `translate3d(0, ${minutesToY(p.start, r.start, scale)}px, 0)`
+    el.style.insetInlineStart = box.insetInlineStart
+    el.style.width = box.width
+    el.style.height = box.height
+    el.style.transform = `translate3d(0, ${box.top}, 0)`
     el.classList.toggle('is-invalid', !p.valid)
     el.dataset.kind = kind
     const label = previewLabelRef.current
     if (label) label.textContent = `${formatMinutes(p.start)} – ${formatMinutes(p.end)}`
   }, [])
 
+  const showPlaceholder = useCallback((extent: Extent) => {
+    const el = placeholderRef.current
+    const { ids: trackIds, range: r, ppm: scale } = live.current
+    if (!el) return
+    const box = cardBox(extent, trackIds.length, r, scale)
+    el.style.display = 'block'
+    el.style.insetInlineStart = box.insetInlineStart
+    el.style.width = box.width
+    el.style.height = box.height
+    el.style.top = box.top
+  }, [])
+
   const hidePreview = useCallback(() => {
-    const el = previewRef.current
-    if (el) el.style.display = 'none'
-    const marker = markerRef.current
-    if (marker) marker.style.display = 'none'
-    for (const card of cardEls.current.values()) card.classList.remove('is-dragging')
+    for (const el of [previewRef.current, placeholderRef.current, markerRef.current]) if (el) el.style.display = 'none'
+    for (const card of cardEls.current.values()) {
+      if (card.classList.contains('is-moving')) {
+        card.classList.remove('is-moving')
+        card.style.transform = ''
+      }
+    }
   }, [])
 
   /* ---------- editing helpers ---------- */
@@ -373,11 +284,11 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
         return
       }
       if (commit((s) => removeItem(s, id))) {
-        showToast('Session deleted')
+        notify({ text: 'Session deleted', action: { label: 'Undo', run: undo } })
         announce('Session deleted. Press Undo to bring it back.')
       }
     },
-    [announce, commit, rollbackTo, showToast],
+    [announce, commit, notify, rollbackTo, undo],
   )
 
   const createSession = useCallback(
@@ -410,11 +321,11 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
   /** Converters for the columns area as it is right now (it moves when the board scrolls). */
   function frame() {
     const cols = colsRef.current
-    const { range: r, ppm: scale, ids: trackIds } = live.current
+    const { range: r, ppm: scale, ids: trackIds, rtl: mirrored } = live.current
     const rect = cols?.getBoundingClientRect() ?? { top: 0, left: 0, width: 0 }
     return {
       minutes: (clientY: number) => yToMinutes(clientY - rect.top, r.start, scale),
-      column: (clientX: number) => columnAt(clientX, rect.left, rect.width, trackIds.length),
+      column: (clientX: number) => columnAt(clientX, rect.left, rect.width, trackIds.length, mirrored),
     }
   }
 
@@ -433,9 +344,19 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
     if (trackIds.length === 0 || !colsRef.current) return
     const f = frame()
     const anchor = { minutes: f.minutes(e.clientY), column: f.column(e.clientX) }
+    const touch = e.pointerType === 'touch'
+    // A finger's tap would otherwise be followed by emulated mouse events that steal focus from the
+    // editor we are about to open (and the on-screen keyboard with it).
+    if (touch) e.preventDefault()
     setSelectedId(null)
     runGesture(e, colsRef.current, viewportRef.current, headerHeight(), {
-      threshold: DRAG_THRESHOLD_PX,
+      // A finger jitters: a tap may wander a few pixels. A long press arms drawing.
+      threshold: touch ? TOUCH_SLOP_PX : DRAG_THRESHOLD_PX,
+      holdMs: touch ? LONG_PRESS_MS : undefined,
+      armed: () => {
+        showPreview(previewClick(live.current.schedule.items, trackIds, anchor), 'create')
+        navigator.vibrate?.(12)
+      },
       update: (pt) => {
         const g = frame()
         showPreview(previewCreate(live.current.schedule.items, trackIds, anchor, { minutes: g.minutes(pt.y), column: g.column(pt.x) }), 'create')
@@ -463,68 +384,95 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
     const id = card.item.id
     setSelectedId(id)
     const handle = (e.target as HTMLElement).closest<HTMLElement>('[data-handle]')
-    const edge = handle?.dataset.handle as 'top' | 'bottom' | 'left' | 'right' | undefined
+    const edge = handle?.dataset.handle as 'top' | 'bottom' | 'start' | 'end' | undefined
     const original: Extent = { start: toMinutes(card.item.start), end: toMinutes(card.item.end), first: card.first, last: card.last }
     const trackIds = live.current.ids
     const f0 = frame()
     const itemOf = () => live.current.schedule.items.find((i) => i.id === id) ?? card.item
+    const viewport = viewportRef.current
+    const startScroll = { left: viewport?.scrollLeft ?? 0, top: viewport?.scrollTop ?? 0 }
 
     if (edge) {
-      const target = handle as HTMLElement
-      runGesture(e, target, viewportRef.current, headerHeight(), {
+      // Resizing stretches the card itself; the label floats over it.
+      const originalBox = { insetInlineStart: element.style.insetInlineStart, width: element.style.width, top: element.style.top, height: element.style.height }
+      const originalTime = element.querySelector('.board-card__time')?.textContent ?? ''
+      const restore = () => {
+        Object.assign(element.style, originalBox)
+        const time = element.querySelector('.board-card__time')
+        if (time) time.textContent = originalTime
+        element.classList.remove('is-resizing')
+        hidePreview()
+      }
+      const previewAt = (pt: Pt): Preview => {
+        const g = frame()
+        const items = live.current.schedule.items
+        return edge === 'top' || edge === 'bottom'
+          ? previewResize(items, trackIds, itemOf(), original, edge, g.minutes(pt.y))
+          : previewSpan(items, trackIds, itemOf(), original, edge === 'start' ? 'left' : 'right', g.column(pt.x))
+      }
+      runGesture(e, handle as HTMLElement, viewport, headerHeight(), {
         threshold: 0,
         update: (pt) => {
-          const g = frame()
-          const p =
-            edge === 'top' || edge === 'bottom'
-              ? previewResize(live.current.schedule.items, trackIds, itemOf(), original, edge, g.minutes(pt.y))
-              : previewSpan(live.current.schedule.items, trackIds, itemOf(), original, edge, g.column(pt.x))
-          element.classList.add('is-dragging')
+          const p = previewAt(pt)
+          element.classList.add('is-resizing')
+          Object.assign(element.style, cardBox(p, trackIds.length, live.current.range, live.current.ppm))
+          const time = element.querySelector('.board-card__time')
+          if (time) time.textContent = `${formatMinutes(p.start)} – ${formatMinutes(p.end)}`
           showPreview(p, 'resize')
         },
         finish: (pt) => {
+          const p = previewAt(pt)
+          const change = edge === 'top' ? { start: formatMinutes(p.start) } : { end: formatMinutes(p.end) }
+          const op = (s: Schedule) => (edge === 'top' || edge === 'bottom' ? resizeItem(s, id, change) : setItemColumns(s, id, p.first, p.last))
+          // Leave the stretched card in place: the render that follows draws the same box.
+          const applied = commit(op)
+          element.classList.remove('is-resizing')
           hidePreview()
-          const g = frame()
-          const items = live.current.schedule.items
-          if (edge === 'top' || edge === 'bottom') {
-            const p = previewResize(items, trackIds, itemOf(), original, edge, g.minutes(pt.y))
-            const change = edge === 'top' ? { start: formatMinutes(p.start) } : { end: formatMinutes(p.end) }
-            if (commit((s) => resizeItem(s, id, change))) announce(`${edge === 'top' ? 'Starts' : 'Ends'} at ${formatMinutes(edge === 'top' ? p.start : p.end)}`)
-          } else {
-            const p = previewSpan(items, trackIds, itemOf(), original, edge, g.column(pt.x))
-            if (commit((s) => setItemColumns(s, id, p.first, p.last))) {
-              announce(`Now spans ${tracks.slice(p.first, p.last + 1).map((c) => c.name).join(' and ')}`)
-            }
-          }
+          if (!applied) restore()
+          else if (edge === 'top' || edge === 'bottom') announce(`${edge === 'top' ? 'Starts' : 'Ends'} at ${formatMinutes(edge === 'top' ? p.start : p.end)}`)
+          else announce(`Now spans ${tracks.slice(p.first, p.last + 1).map((c) => c.name).join(' and ')}`)
         },
-        cancel: hidePreview,
+        cancel: restore,
       })
       return
     }
 
+    // Moving: the card itself follows the pointer; its origin shows a dashed placeholder and the
+    // snapped landing spot a light outline.
     const downMinutes = f0.minutes(e.clientY)
     const downColumn = f0.column(e.clientX)
+    const startPt = { x: e.clientX, y: e.clientY }
     const previewAt = (pt: Pt): Preview => {
       const g = frame()
       return previewMove(live.current.schedule.items, trackIds, itemOf(), original, g.minutes(pt.y) - downMinutes, g.column(pt.x) - downColumn)
     }
-    runGesture(e, element, viewportRef.current, headerHeight(), {
-      threshold: DRAG_THRESHOLD_PX,
+    runGesture(e, element, viewport, headerHeight(), {
+      threshold: e.pointerType === 'touch' ? TOUCH_SLOP_PX : DRAG_THRESHOLD_PX,
       update: (pt) => {
-        element.classList.add('is-dragging')
+        const dx = pt.x - startPt.x + ((viewport?.scrollLeft ?? 0) - startScroll.left)
+        const dy = pt.y - startPt.y + ((viewport?.scrollTop ?? 0) - startScroll.top)
+        element.classList.add('is-moving')
+        element.style.transform = `translate3d(${dx}px, ${dy}px, 0)`
+        showPlaceholder(original)
         showPreview(previewAt(pt), 'move')
       },
       finish: (pt, dragging) => {
-        hidePreview()
         if (!dragging) return
         const p = previewAt(pt)
+        const stay = () => hidePreview()
         if (!p.valid) {
+          stay()
           announce(`That spot is taken, so it stays at ${card.item.start}`)
           return
         }
         if (commit((s) => moveItem(s, id, formatMinutes(p.start), trackIds[p.first] as string))) {
+          // Drop the card straight onto its new place so it does not flash back before the render.
+          Object.assign(element.style, cardBox(p, trackIds.length, live.current.range, live.current.ppm))
+          element.classList.remove('is-moving')
+          element.style.transform = ''
+          hidePreview()
           announce(`Moved to ${formatMinutes(p.start)}, ${tracks.slice(p.first, p.last + 1).map((c) => c.name).join(' and ')}`)
-        }
+        } else stay()
       },
       cancel: hidePreview,
     })
@@ -549,8 +497,7 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
         setSelectedId(copyId)
         focusAfter.current = copyId
         moved.current = copyId
-        const copy = live.current.schedule.items.find((i) => i.id === copyId)
-        announce(copy ? `Duplicated to ${copy.start}` : 'Duplicated')
+        announce('Duplicated below')
       } else announce('There is no room below to duplicate into')
       return
     }
@@ -590,7 +537,9 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
       case 'ArrowLeft':
       case 'ArrowRight': {
         e.preventDefault()
-        const delta = e.key === 'ArrowLeft' ? -1 : 1
+        // Left and right are what you see: on a mirrored board they swap.
+        const visual = e.key === 'ArrowLeft' ? -1 : 1
+        const delta = live.current.rtl ? -visual : visual
         if (commit((s) => moveItem(s, id, item.start, delta), key)) {
           moved.current = id
           // `live` still holds the previous render, so describe the destination from the delta.
@@ -615,7 +564,7 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
     const startX = e.clientX
     const targetOf = (x: number) => {
       const rect = heads.getBoundingClientRect()
-      return columnAt(x, rect.left, rect.width, live.current.ids.length)
+      return columnAt(x, rect.left, rect.width, live.current.ids.length, live.current.rtl)
     }
     const reset = () => {
       element.style.transform = ''
@@ -632,9 +581,10 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
         const marker = markerRef.current
         const rect = heads.getBoundingClientRect()
         if (marker) {
+          const count = Math.max(1, live.current.ids.length)
           const target = targetOf(pt.x)
           marker.style.display = 'block'
-          marker.style.left = `${((target + (target > index ? 1 : 0)) * rect.width) / Math.max(1, live.current.ids.length)}px`
+          marker.style.insetInlineStart = `${((target + (target > index ? 1 : 0)) * rect.width) / count}px`
         }
       },
       finish: (pt, dragging) => {
@@ -657,7 +607,7 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
 
   function deleteTrack(id: string, name: string) {
     if (commit((s) => removeColumn(s, id))) {
-      showToast('Track deleted')
+      notify({ text: 'Track deleted', action: { label: 'Undo', run: undo } })
       announce(`Track ${name} deleted. Press Undo to bring it back.`)
     }
   }
@@ -670,20 +620,23 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
   /* ---------- render ---------- */
 
   const template = `repeat(${n}, minmax(var(--board-col-min), 1fr))`
-  const editing = editingId === null ? null : schedule.items.find((i) => i.id === editingId) ?? null
+  const editing = editingId === null ? null : (schedule.items.find((i) => i.id === editingId) ?? null)
   const hourLines = {
     backgroundImage: 'linear-gradient(var(--board-hour) 1px, transparent 1px), linear-gradient(var(--board-quarter) 1px, transparent 1px)',
     backgroundSize: `100% ${60 * ppm}px, 100% ${15 * ppm}px`,
   }
 
   return (
-    <section className="panel board" aria-labelledby="panel-grid" style={{ ['--board-ppm' as string]: ppm }}>
+    <section className="board" aria-labelledby="panel-grid">
       <div className="board__bar">
         <h2 id="panel-grid">Grid</h2>
-        <button type="button" onClick={addAtSuggestedSlot} disabled={n === 0}>
+        <button type="button" className="primary" onClick={addAtSuggestedSlot} disabled={n === 0}>
           + Add session
         </button>
-        <div className="board__zoom" role="group" aria-label="Zoom">
+        <button type="button" onClick={addTrack}>
+          + Track
+        </button>
+        <div className="segmented board__zoom" role="group" aria-label="Zoom">
           {(['compact', 'comfortable'] as const).map((z) => (
             <button key={z} type="button" aria-pressed={zoom === z} onClick={() => setZoom(z)}>
               {z === 'compact' ? 'Compact' : 'Comfortable'}
@@ -693,7 +646,7 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
       </div>
 
       <div className="board__viewport" ref={viewportRef}>
-        <div className="board__canvas" dir="ltr" style={{ ['--board-n' as string]: Math.max(2, n) }}>
+        <div className="board__canvas" dir={rtl ? 'rtl' : 'ltr'} style={{ ['--board-n' as string]: Math.max(2, n) }}>
           <div className="board__row board__head" ref={headRef}>
             <div className="board__corner" />
             <div className="board__heads" ref={headsRef} style={{ gridTemplateColumns: n > 0 ? template : '1fr' }}>
@@ -713,11 +666,6 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
               ))}
               <div className="board__marker" ref={markerRef} aria-hidden="true" />
             </div>
-            <div className="board__add">
-              <button type="button" onClick={addTrack}>
-                + Track
-              </button>
-            </div>
           </div>
 
           <div className="board__row board__more-row">
@@ -725,7 +673,6 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
             <button type="button" className="board__more" onClick={() => extendRange('before')} disabled={range.start === 0}>
               ↑ Earlier
             </button>
-            <div />
           </div>
 
           <div className="board__row board__body">
@@ -744,6 +691,7 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
               data-range-start={range.start}
               data-ppm={ppm}
               data-tracks={n}
+              data-rtl={rtl}
               onPointerDown={handleColumnsPointerDown}
             >
               <div className="board__lines" style={{ ...hourLines, gridTemplateColumns: n > 0 ? template : '1fr' }} aria-hidden="true">
@@ -774,10 +722,7 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
                     aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Shift+ArrowUp Shift+ArrowDown Enter Delete Control+D"
                     data-item-id={item.id}
                     style={{
-                      top: minutesToY(toMinutes(item.start), range.start, ppm),
-                      height: Math.max(2, h - 1),
-                      left: `calc(${(card.first * 100) / Math.max(1, n)}% + 3px)`,
-                      width: `calc(${((card.last - card.first + 1) * 100) / Math.max(1, n)}% - 6px)`,
+                      ...cardBox({ first: card.first, last: card.last, start: toMinutes(item.start), end: toMinutes(item.end) }, n, range, ppm),
                       ['--c' as string]: track?.color ?? '#888888',
                     }}
                     onPointerDown={(e) => handleCardPointerDown(e, card)}
@@ -787,8 +732,8 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
                   >
                     <span className="board-card__handle board-card__handle--top" data-handle="top" aria-hidden="true" />
                     <span className="board-card__handle board-card__handle--bottom" data-handle="bottom" aria-hidden="true" />
-                    <span className="board-card__handle board-card__handle--left" data-handle="left" aria-hidden="true" />
-                    <span className="board-card__handle board-card__handle--right" data-handle="right" aria-hidden="true" />
+                    <span className="board-card__handle board-card__handle--start" data-handle="start" aria-hidden="true" />
+                    <span className="board-card__handle board-card__handle--end" data-handle="end" aria-hidden="true" />
                     <div className="board-card__text" dir="auto">
                       <strong className={item.title.trim() ? '' : 'board-card__empty'}>{item.title.trim() || 'Untitled session'}</strong>
                       {size === 'xs' ? (
@@ -808,6 +753,7 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
                 )
               })}
 
+              <div className="board__placeholder" ref={placeholderRef} aria-hidden="true" />
               <div className="board__preview" ref={previewRef} aria-hidden="true">
                 <span className="board__preview-label" ref={previewLabelRef} />
               </div>
@@ -826,7 +772,6 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
               {n === 0 && <p className="board__hint">Add a track to start scheduling</p>}
               {n > 0 && cards.length === 0 && !editing && <p className="board__hint">Drag on the board to add a session</p>}
             </div>
-            <div />
           </div>
 
           <div className="board__row board__more-row">
@@ -834,7 +779,6 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
             <button type="button" className="board__more" onClick={() => extendRange('after')} disabled={range.end === 1440}>
               ↓ Later
             </button>
-            <div />
           </div>
         </div>
       </div>
@@ -842,23 +786,6 @@ export function Board({ schedule, apply, undo, rollbackTo }: Props) {
       <div className="board__live" aria-live="polite" aria-atomic="true">
         {announcement}
       </div>
-
-      {toast && (
-        <div className="board__toast" role="status" key={toast.id}>
-          <span>{toast.text}</span>
-          <span aria-hidden="true"> · </span>
-          <button
-            type="button"
-            onClick={() => {
-              undo()
-              setToast(null)
-              announce('Restored')
-            }}
-          >
-            Undo
-          </button>
-        </div>
-      )}
     </section>
   )
 }

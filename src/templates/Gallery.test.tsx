@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App.tsx'
 import { downloadText } from '../persistence/files.ts'
-import { startBlank } from '../test/helpers.ts'
+import { fileMenu, startBlank } from '../test/helpers.ts'
 import { BUILTIN_TEMPLATES } from './builtin/index.ts'
 import { serializeTemplateFile } from './file.ts'
 import { todayIn } from './instantiate.ts'
@@ -27,16 +27,17 @@ afterEach(() => vi.restoreAllMocks())
 
 async function openGallery(user = userEvent.setup()) {
   render(<App />)
-  await user.click(screen.getByRole('button', { name: 'New…' }))
+  await fileMenu(user, 'New…')
   return user
 }
 
 describe('gallery dialog', () => {
-  it('opens as a labelled modal dialog with Start blank, Templates and My templates', async () => {
+  it('opens as a labelled modal dialog with Start, Templates and My templates', async () => {
     await openGallery()
     const dialog = screen.getByRole('dialog', { name: 'New schedule' })
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    expect(within(dialog).getByRole('heading', { name: 'Start blank' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Start' })).toBeInTheDocument()
+    expect(within(section('Start')).getAllByRole('article').map((a) => a.getAttribute('aria-label'))).toEqual(['Blank schedule', 'Sample event'])
     expect(within(dialog).getByRole('heading', { name: 'Templates' })).toBeInTheDocument()
     expect(within(dialog).getByRole('heading', { name: 'My templates' })).toBeInTheDocument()
     expect(within(section('Templates')).getAllByRole('article')).toHaveLength(5)
@@ -50,8 +51,8 @@ describe('gallery dialog', () => {
 
   it('shows a live script-free thumbnail per card, only while the dialog is open', async () => {
     const user = await openGallery()
-    expect(thumbnails()).toHaveLength(6) // blank + five templates
-    const first = thumbnails()[1] as HTMLIFrameElement
+    expect(thumbnails()).toHaveLength(7) // blank, sample + five templates
+    const first = thumbnails()[2] as HTMLIFrameElement
     expect(first.getAttribute('srcdoc')).toContain('Company Name Summit')
     expect(first.getAttribute('srcdoc')).toContain('data-theme="light"')
     expect(first.getAttribute('srcdoc')).not.toContain('<script')
@@ -61,12 +62,11 @@ describe('gallery dialog', () => {
     expect(thumbnails()).toHaveLength(0)
   })
 
-  it('Escape and the Close button close it, and focus returns to the New… button', async () => {
+  it('Escape and the Close button close it', async () => {
     const user = await openGallery()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'New…' })).toHaveFocus()
-    await user.click(screen.getByRole('button', { name: 'New…' }))
+    await fileMenu(user, 'New…')
     await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
@@ -94,46 +94,56 @@ describe('gallery dialog', () => {
 })
 
 describe('choosing a card', () => {
-  it('asks before replacing a schedule with changes, and keeps everything if declined', async () => {
+  it('replaces the schedule without asking, and the toast Undo brings the old one back', async () => {
     const user = await openGallery() // first launch: the Cairo sample is loaded
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     await user.click(templateButton('Conference, two tracks'))
-    expect(confirm).toHaveBeenCalledWith('Replace the current schedule? Unsaved changes are kept only in autosave until replaced.')
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument() // no confirm dialog either
+    expect(preview()).toContain('Company Name Summit')
+    const toast = screen.getByRole('status', { name: 'Notification' })
+    expect(toast).toHaveTextContent('Schedule replaced')
+    await user.click(within(toast).getByRole('button', { name: 'Undo' }))
     expect(preview()).toContain('Google for Developers Day')
+    expect(screen.getByLabelText('Event title')).toHaveValue('Google for Developers Day: Cairo')
   })
 
   it('a built-in loads into the editor with a fresh date and its content', async () => {
     const user = await openGallery()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     await user.click(templateButton('Conference, two tracks'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(preview()).toContain('Company Name Summit')
     expect(preview()).not.toContain('Cairo')
     expect(screen.getByLabelText('Event title')).toHaveValue('Company Name Summit')
     expect(screen.getByLabelText('Date')).toHaveValue(todayIn('Europe/London'))
-    expect(screen.getByTestId('summary-items')).toHaveTextContent('12')
-    expect(screen.getByTestId('summary-columns')).toHaveTextContent('2')
+    expect(document.querySelectorAll('.board-card')).toHaveLength(12)
+    expect(document.querySelectorAll('.board-head')).toHaveLength(2)
   })
 
-  it('does not ask when the current schedule is the untouched blank one', async () => {
+  it('the Sample event card loads the Cairo agenda', async () => {
     const user = userEvent.setup()
     render(<App />)
     await startBlank(user)
-    const confirm = vi.spyOn(window, 'confirm')
-    await user.click(screen.getByRole('button', { name: 'New…' }))
+    expect(document.querySelectorAll('.board-card')).toHaveLength(0)
+    await fileMenu(user, 'New…')
+    await user.click(templateButton('Sample event'))
+    expect(preview()).toContain('Build with Gemma 4')
+    expect(document.querySelectorAll('.board-card')).toHaveLength(12)
+  })
+
+  it('a table template opens in table mode', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await startBlank(user)
+    await fileMenu(user, 'New…')
     await user.click(templateButton('Workshop day'))
-    expect(confirm).not.toHaveBeenCalled()
     expect(preview()).toContain('Hands-on Workshop')
-    expect(screen.getByTestId('summary-mode')).toHaveTextContent('table')
+    expect(screen.getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('every built-in can be chosen, edited and still renders (RTL one included)', async () => {
     const user = userEvent.setup()
     render(<App />)
     for (const template of BUILTIN_TEMPLATES) {
-      vi.spyOn(window, 'confirm').mockReturnValue(true)
-      await user.click(screen.getByRole('button', { name: 'New…' }))
+      await fileMenu(user, 'New…')
       await user.click(templateButton(template.name))
       expect(preview()).toContain(template.schedule.event.title)
     }
@@ -143,7 +153,7 @@ describe('choosing a card', () => {
 
 describe('My templates', () => {
   async function saveCurrent(user: ReturnType<typeof userEvent.setup>, name: string, options: { content?: boolean; description?: string } = {}) {
-    await user.click(screen.getByRole('button', { name: 'Save as template…' }))
+    await fileMenu(user, 'Save as template…')
     const field = screen.getByLabelText('Template name')
     await user.clear(field)
     if (name) await user.type(field, name)
@@ -155,7 +165,7 @@ describe('My templates', () => {
   it('Save as template… shows a dialog, requires a name, and saves into My templates', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Save as template…' }))
+    await fileMenu(user, 'Save as template…')
     const dialog = screen.getByRole('dialog', { name: 'Save as template' })
     expect(within(dialog).getByLabelText('Template name')).toHaveValue('Google for Developers Day: Cairo')
     expect(within(dialog).getByLabelText('Include sessions, speakers and cell content')).toBeChecked()
@@ -168,14 +178,14 @@ describe('My templates', () => {
     await user.type(within(dialog).getByLabelText('Description'), 'Two lanes')
     await user.click(within(dialog).getByRole('button', { name: 'Save template' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Saved “My conference” to My templates.')
+    expect(screen.getByRole('status', { name: 'Notice' })).toHaveTextContent('Saved “My conference” to My templates.')
     expect(listUserTemplates()).toHaveLength(1)
 
-    await user.click(screen.getByRole('button', { name: 'New…' }))
+    await fileMenu(user, 'New…')
     const mine = section('My templates')
     const card = within(mine).getByRole('article', { name: 'My conference' })
     expect(card).toHaveTextContent('Two lanes')
-    expect(thumbnails()).toHaveLength(7)
+    expect(thumbnails()).toHaveLength(8)
     expect(within(card).getByRole('button', { name: 'Rename My conference' })).toBeInTheDocument()
     expect(within(card).getByRole('button', { name: 'Delete My conference' })).toBeInTheDocument()
     expect(within(card).getByRole('button', { name: 'Export My conference' })).toBeInTheDocument()
@@ -184,7 +194,7 @@ describe('My templates', () => {
   it('Escape closes the save dialog without saving', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Save as template…' }))
+    await fileMenu(user, 'Save as template…')
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(listUserTemplates()).toEqual([])
@@ -195,8 +205,7 @@ describe('My templates', () => {
     render(<App />)
     await saveCurrent(user, 'Cairo copy')
     const stored = listUserTemplates()[0]!
-    await user.click(screen.getByRole('button', { name: 'New…' }))
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await fileMenu(user, 'New…')
     await user.click(templateButton('Cairo copy'))
     expect(preview()).toContain('Build with Gemma 4')
     expect(screen.getByLabelText('Date')).toHaveValue(todayIn('Africa/Cairo'))
@@ -215,20 +224,19 @@ describe('My templates', () => {
     expect(stored.schedule.columns.map((c) => c.name)).toEqual(['Beginner', 'Intermediate'])
     expect(stored.schedule.rows).toHaveLength(0)
 
-    await user.click(screen.getByRole('button', { name: 'New…' }))
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await fileMenu(user, 'New…')
     await user.click(templateButton('Shell only'))
     expect(preview()).not.toContain('Build with Gemma 4')
     expect(preview()).not.toContain('class="people"')
     expect(screen.getByLabelText('Event title')).toHaveValue('Google for Developers Day: Cairo')
-    expect(screen.getByTestId('summary-items')).toHaveTextContent('12')
+    expect(document.querySelectorAll('.board-card')).toHaveLength(12)
   })
 
   it('renames and deletes (with confirmation)', async () => {
     const user = userEvent.setup()
     render(<App />)
     await saveCurrent(user, 'Old name')
-    await user.click(screen.getByRole('button', { name: 'New…' }))
+    await fileMenu(user, 'New…')
     await user.click(screen.getByRole('button', { name: 'Rename Old name' }))
     const input = screen.getByLabelText('New name for Old name')
     await user.clear(input)
@@ -242,12 +250,14 @@ describe('My templates', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByLabelText(/^New name for/)).not.toBeInTheDocument()
 
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    // A saved template cannot be undone, so this asks with the app's own dialog.
     await user.click(screen.getByRole('button', { name: 'Delete New name' }))
-    expect(confirm).toHaveBeenCalledWith('Delete template "New name"?')
+    const confirmDialog = screen.getByRole('dialog', { name: 'Delete “New name”?' })
+    await user.click(within(confirmDialog).getByRole('button', { name: 'Cancel' }))
     expect(listUserTemplates()).toHaveLength(1)
-    confirm.mockReturnValue(true)
+    expect(screen.getByRole('dialog', { name: 'New schedule' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Delete New name' }))
+    await user.click(within(screen.getByRole('dialog', { name: 'Delete “New name”?' })).getByRole('button', { name: 'Delete template' }))
     expect(listUserTemplates()).toEqual([])
     expect(within(section('My templates')).getByText(/Nothing here yet/)).toBeInTheDocument()
   })
@@ -256,7 +266,7 @@ describe('My templates', () => {
     const user = userEvent.setup()
     render(<App />)
     await saveCurrent(user, 'Export Me')
-    await user.click(screen.getByRole('button', { name: 'New…' }))
+    await fileMenu(user, 'New…')
     await user.click(screen.getByRole('button', { name: 'Export Export Me' }))
     const [name, text, mime] = vi.mocked(downloadText).mock.calls[0] as [string, string, string]
     expect(name).toBe('export-me.template.json')
@@ -293,7 +303,7 @@ describe('opening a template file', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Template file' })
     expect(dialog).toHaveTextContent('Workshop day')
     await user.click(within(dialog).getByRole('button', { name: 'Add to My templates' }))
-    expect(screen.getByRole('status')).toHaveTextContent('Added “Workshop day” to My templates.')
+    expect(screen.getByRole('status', { name: 'Notice' })).toHaveTextContent('Added “Workshop day” to My templates.')
     expect(listUserTemplates().map((t) => t.name)).toEqual(['Workshop day'])
     expect(preview()).toContain('Google for Developers Day') // the schedule was not replaced
   })
@@ -325,5 +335,47 @@ describe('opening a template file', () => {
     await user.upload(screen.getByTestId('open-file'), file(JSON.stringify(sample.schedule), 'plain.json'))
     await waitFor(() => expect(screen.getByLabelText('Event title')).toHaveValue('Hands-on Workshop'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
+
+describe('My templates search and sort', () => {
+  const make = (n: number) => {
+    const base = BUILTIN_TEMPLATES[1]!
+    const entries = Array.from({ length: n }, (_, i) => ({
+      id: `tpl_${i}`,
+      name: `Template ${String.fromCharCode(65 + (n - 1 - i))}`,
+      description: i === 2 ? 'findable description' : '',
+      createdAt: new Date(2026, 0, 1 + i).toISOString(),
+      schedule: base.schedule,
+    }))
+    localStorage.setItem(TEMPLATES_KEY, JSON.stringify(entries))
+  }
+  const names = () => within(section('My templates')).queryAllByRole('article').map((a) => a.getAttribute('aria-label'))
+
+  it('has neither with six templates or fewer', async () => {
+    make(6)
+    await openGallery()
+    expect(screen.queryByLabelText('Search my templates')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Sort my templates')).not.toBeInTheDocument()
+  })
+
+  it('offers both beyond six: search by name or description, sort by date or name', async () => {
+    make(8)
+    const user = await openGallery()
+    expect(names()).toHaveLength(8)
+    expect(names()[0]).toBe('Template A') // newest first: the last one created
+    await user.selectOptions(screen.getByLabelText('Sort my templates'), 'oldest')
+    expect(names()[0]).toBe('Template H')
+    await user.selectOptions(screen.getByLabelText('Sort my templates'), 'name')
+    expect(names()).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((l) => `Template ${l}`))
+    await user.type(screen.getByLabelText('Search my templates'), 'template c')
+    expect(names()).toEqual(['Template C'])
+    await user.clear(screen.getByLabelText('Search my templates'))
+    await user.type(screen.getByLabelText('Search my templates'), 'findable')
+    expect(names()).toHaveLength(1)
+    await user.clear(screen.getByLabelText('Search my templates'))
+    await user.type(screen.getByLabelText('Search my templates'), 'zzz')
+    expect(names()).toEqual([])
+    expect(within(section('My templates')).getByText(/No template matches/)).toBeInTheDocument()
   })
 })

@@ -159,7 +159,8 @@ try {
     const page = await context.newPage()
     await page.route(/https?:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)\/.*/, (route) => route.abort())
     await page.goto(base, { waitUntil: 'load' })
-    await page.getByRole('button', { name: 'New…' }).click()
+    await page.getByRole('button', { name: /^File/ }).click()
+    await page.getByRole('menuitem', { name: 'New…' }).click()
     await page.getByRole('dialog', { name: 'New schedule' }).waitFor()
     await page.waitForTimeout(1500) // thumbnails are sandboxed iframes: give them a moment to paint
     const gallery = join(outDir, 'gallery.png')
@@ -168,7 +169,7 @@ try {
     await context.close()
 
     // The board and the split editor, on the first-launch Cairo sample (fresh browser profile).
-    const editorContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+    const editorContext = await browser.newContext({ viewport: { width: 1440, height: 900 } })
     const editor = await editorContext.newPage()
     await editor.route(/https?:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)\/.*/, (route) => route.abort())
     await editor.goto(base, { waitUntil: 'load' })
@@ -204,7 +205,37 @@ try {
     console.log(`wrote ${dragShot}`)
     await editor.keyboard.press('Escape')
     await editor.mouse.up()
+
+    // Table mode: the light spreadsheet, rows derived from the grid's slots.
+    await editor.getByRole('button', { name: 'Table', exact: true }).click()
+    await editor.waitForTimeout(500)
+    const tableShot = join(outDir, 'table-editor.png')
+    await editor.screenshot({ path: tableShot })
+    console.log(`wrote ${tableShot}`)
     await editorContext.close()
+
+    // A narrow window (a tablet held upright): no split, the sidebar is a drawer; and a phone.
+    for (const [name, viewport, mobile] of [
+      ['editor-narrow', { width: 800, height: 900 }, false],
+      ['editor-phone', { width: 390, height: 844 }, true],
+    ]) {
+      const small = await browser.newContext({ viewport, hasTouch: mobile, isMobile: mobile })
+      const smallPage = await small.newPage()
+      await smallPage.route(/https?:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)\/.*/, (route) => route.abort())
+      await smallPage.goto(base, { waitUntil: 'load' })
+      await smallPage.locator('.board__cols').waitFor()
+      await smallPage.waitForTimeout(500)
+      const out = join(outDir, `${name}.png`)
+      await smallPage.screenshot({ path: out })
+      console.log(`wrote ${out}`)
+      // The session editor as a sheet / popover over the board.
+      await smallPage.getByRole('button', { name: '+ Add session' }).click()
+      await smallPage.waitForTimeout(300)
+      const sheet = join(outDir, `${name}-editing.png`)
+      await smallPage.screenshot({ path: sheet })
+      console.log(`wrote ${sheet}`)
+      await small.close()
+    }
   } finally {
     await server.close()
   }

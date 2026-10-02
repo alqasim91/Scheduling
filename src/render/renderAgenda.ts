@@ -437,10 +437,13 @@ export interface RenderOptions {
   headPrefix?: string
   /** Raw HTML placed just before `</body>` (e.g. scripts). */
   bodyEnd?: string
+  /** Sessions to leave out (the editor's live preview hides a new session until it has a title). */
+  hideItems?: readonly string[]
 }
 
 /** A complete, self-contained HTML document (no scripts). */
-export function renderDocument(schedule: Schedule, options: RenderOptions = {}): string {
+export function renderDocument(source: Schedule, options: RenderOptions = {}): string {
+  const schedule: Schedule = options.hideItems?.length ? { ...source, items: source.items.filter((i) => !options.hideItems?.includes(i.id)) } : source
   const locale = resolveLocale(schedule.event.locale)
   const theme = options.forceTheme ?? schedule.branding.theme
   const themeAttr = theme === 'light' || theme === 'dark' ? ` data-theme="${theme}"` : ''

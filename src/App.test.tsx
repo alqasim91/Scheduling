@@ -13,17 +13,15 @@ beforeEach(() => {
 })
 
 describe('App', () => {
-  it('renders the toolbar and the sample summary on first launch', () => {
+  it('renders the top bar and the sample on first launch', () => {
     render(<App />)
-    expect(screen.getByRole('button', { name: 'New…' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Open…' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save JSON' })).toBeInTheDocument()
-    expect(screen.getByTestId('summary-mode')).toHaveTextContent('track-grid')
+    expect(screen.getByRole('button', { name: /^File/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Track grid' })).toHaveAttribute('aria-pressed', 'true')
     // First launch (no autosave) starts from the Cairo sample.
     expect(screen.getByLabelText('Event title')).toHaveValue('Google for Developers Day: Cairo')
-    expect(screen.getByTestId('summary-columns')).toHaveTextContent('2')
-    expect(screen.getByTestId('summary-rows')).toHaveTextContent('0')
-    expect(screen.getByTestId('summary-items')).toHaveTextContent('12')
+    expect(document.querySelectorAll('.board-head')).toHaveLength(2)
+    expect(document.querySelectorAll('.board-card')).toHaveLength(12)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -64,7 +62,7 @@ describe('App', () => {
     await user.type(input, 'Throwaway')
     await startBlank(user)
     expect(input).toHaveValue('Untitled event')
-    expect(screen.getByTestId('summary-items')).toHaveTextContent('0')
+    expect(document.querySelectorAll('.board-card')).toHaveLength(0)
   })
 
   it('Open with invalid JSON shows an alert and keeps state', async () => {
@@ -124,7 +122,7 @@ describe('App', () => {
       expect(note).toHaveTextContent('Opened with one adjustment.')
       expect(note).toHaveTextContent(warning)
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-      expect(screen.getByTestId('summary-items')).toHaveTextContent('12')
+      expect(document.querySelectorAll('.board-card')).toHaveLength(12)
       await user.click(within(note).getByRole('button', { name: 'Dismiss' }))
       expect(screen.queryByRole('status', { name: 'Changes made while opening the file' })).not.toBeInTheDocument()
     })
@@ -148,7 +146,7 @@ describe('App', () => {
       first.unmount()
       render(<App />)
       expect(screen.queryByRole('status', { name: 'Changes made while opening the file' })).not.toBeInTheDocument()
-      expect(screen.getByTestId('summary-items')).toHaveTextContent('12')
+      expect(document.querySelectorAll('.board-card')).toHaveLength(12)
     })
   })
 })
