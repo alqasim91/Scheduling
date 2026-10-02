@@ -30,19 +30,50 @@ export function deriveSlots(items: readonly Item[]): Slot[] {
     })
 }
 
+/** Where `rowsFromSlots` puts a slot's session content: the table columns that receive it. */
+export interface SlotContent {
+  /** Column ids of the table's Session, Speaker and Tag columns (each optional). */
+  session?: string
+  speaker?: string
+  tag?: string
+  /** The grid's tracks in order: their names become the tags. */
+  tracks: readonly { id: string; name: string }[]
+  /** Tag for an item that spans every track. */
+  everyone: string
+}
+
 /**
  * Rows for table mode, taken from the grid slots (used the first time a grid schedule becomes a
- * table). A slot's item notes become the row's note (in `columnOrder`, joined by a space).
+ * table). A slot's item notes become the row's note (in `columnOrder`, joined by a space). With
+ * `content`, the items starting in the slot also fill the row's cells: titles joined with " / ",
+ * distinct speakers with ", ", and track names (or the "Everyone" label) as comma-separated tags.
  */
-export function rowsFromSlots(items: readonly Item[], makeId: () => string, columnOrder: readonly string[] = []): Row[] {
+export function rowsFromSlots(items: readonly Item[], makeId: () => string, columnOrder: readonly string[] = [], content?: SlotContent): Row[] {
   const position = (item: Item) => Math.min(...item.columnIds.map((id) => columnOrder.indexOf(id)).map((i) => (i < 0 ? Infinity : i)))
   return deriveSlots(items).map((slot) => {
-    const note = [...slot.items]
+    const ordered = [...slot.items]
       .map((item, order) => ({ item, order }))
       .sort((a, b) => position(a.item) - position(b.item) || a.order - b.order)
-      .map(({ item }) => item.note?.trim() ?? '')
+      .map(({ item }) => item)
+    const note = ordered
+      .map((item) => item.note?.trim() ?? '')
       .filter((n) => n !== '')
       .join(' ')
-    return { id: makeId(), start: slot.start, end: slot.end, ...(note ? { note } : {}) }
+    const cells: Record<string, string> = {}
+    if (content) {
+      const put = (column: string | undefined, value: string) => {
+        if (column && value !== '') cells[column] = value
+      }
+      put(content.session, ordered.map((i) => i.title.trim()).filter((t) => t !== '').join(' / '))
+      put(content.speaker, [...new Set(ordered.map((i) => i.speaker?.trim() ?? '').filter((n) => n !== ''))].join(', '))
+      const tags: string[] = []
+      for (const item of ordered) {
+        const all = content.tracks.length > 1 && content.tracks.every((t) => item.columnIds.includes(t.id))
+        const names = all ? [content.everyone] : content.tracks.filter((t) => item.columnIds.includes(t.id)).map((t) => t.name)
+        for (const name of names) if (!tags.includes(name)) tags.push(name)
+      }
+      put(content.tag, tags.join(', '))
+    }
+    return { id: makeId(), start: slot.start, end: slot.end, ...(Object.keys(cells).length ? { cells } : {}), ...(note ? { note } : {}) }
   })
 }

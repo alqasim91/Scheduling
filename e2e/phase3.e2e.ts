@@ -602,6 +602,36 @@ test.describe('table columns strip', () => {
   })
 })
 
+test.describe('first switch to a table', () => {
+  test('the grid content comes along: titles, speakers and track tags fill the new columns', async ({ page }) => {
+    await openApp(page, seedSchedule({
+      items: [
+        { id: 'a', tracks: [0], start: '09:00', end: '10:00', title: 'Build with Gemma 4', speaker: 'Eman' },
+        { id: 'b', tracks: [1], start: '09:00', end: '10:00', title: 'Second talk', speaker: 'Sam' },
+        { id: 'c', tracks: [0, 1, 2], start: '10:00', end: '10:30', title: 'Lunch', variant: 'break' },
+      ],
+    }))
+    await page.getByRole('button', { name: 'Table', exact: true }).click()
+    await expect(page.getByLabel('Session for row 09:00')).toHaveValue('Build with Gemma 4 / Second talk')
+    await expect(page.getByLabel('Speaker for row 09:00')).toHaveValue('Eman, Sam')
+    await expect(page.getByLabel('Tag for row 09:00')).toHaveValue('Alpha, Beta')
+    await expect(page.getByLabel('Session for row 10:00')).toHaveValue('Lunch')
+    await expect(page.getByLabel('Tag for row 10:00')).toHaveValue('Everyone')
+    // Empty tag cells show a short hint that is not cut off; text cells have none.
+    await expect(page.getByLabel('Tag for row 09:00')).toHaveAttribute('placeholder', 'tag, tag')
+    await expect(page.getByLabel('Session for row 09:00')).not.toHaveAttribute('placeholder', /.+/)
+  })
+
+  test('on the Cairo sample, Build with Gemma 4 is in a Session cell', async ({ page }) => {
+    await page.route(/https?:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)\/.*/, (route) => route.abort())
+    await page.goto('/')
+    await expect(page.getByLabel('Event title')).toHaveValue('Google for Developers Day: Cairo')
+    await page.getByRole('button', { name: 'Table', exact: true }).click()
+    await expect(page.getByLabel('Session for row 17:05')).toHaveValue('Build with Gemma 4')
+    await expect(page.getByLabel('Speaker for row 17:05')).toHaveValue('Eman Alrefai')
+  })
+})
+
 test.describe('tiny cards', () => {
   test('at compact zoom a card under 14px has one resize handle at the bottom, and the body still drags', async ({ page }) => {
     await openApp(page, seedSchedule({ items: [{ id: 'blink', tracks: [0], start: '09:00', end: '09:10', title: 'Blink' }, { id: 'ok', tracks: [1], start: '09:00', end: '10:00', title: 'Normal' }] }))

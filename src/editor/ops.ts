@@ -16,6 +16,7 @@ import { newId } from '../model/ids.ts'
 import { conflictingItems } from '../model/overlap.ts'
 import type { Column, Item, Row, Schedule } from '../model/schema.ts'
 import { rowsFromSlots } from '../model/slots.ts'
+import { resolveLabels } from '../render/labels.ts'
 import { TIME_PATTERN, fromMinutes, toMinutes } from '../model/time.ts'
 
 export type Direction = -1 | 1
@@ -257,13 +258,26 @@ export function setMode(schedule: Schedule, mode: Schedule['mode']): Schedule {
       { id: newId('col'), name: 'Track 2', color: '#0b57d0', type: 'track' },
     ]
   }
-  // First time a grid schedule becomes a table: start from its slots, so the table is not empty.
-  const rows =
-    mode === 'table' && schedule.rows.length === 0 ? rowsFromSlots(
-          schedule.items,
-          () => newId('row'),
-          trackColumns(schedule).map((c) => c.id),
-        ) : schedule.rows
+  // First time a grid schedule becomes a table: start from its slots, so the table is not empty,
+  // and carry each slot's sessions over into the Session, Speaker and Tag cells.
+  let rows = schedule.rows
+  if (mode === 'table' && schedule.rows.length === 0) {
+    const tracks = trackColumns(schedule)
+    const own = columns.filter((c) => !isTrack(c))
+    const first = (type: Column['type']) => own.find((c) => c.type === type)?.id
+    rows = rowsFromSlots(
+      schedule.items,
+      () => newId('row'),
+      tracks.map((c) => c.id),
+      {
+        session: first('text'),
+        speaker: first('person'),
+        tag: first('tag'),
+        tracks,
+        everyone: resolveLabels(schedule.labels, schedule.event.locale).everyone,
+      },
+    )
+  }
   return { ...schedule, mode, columns, rows }
 }
 

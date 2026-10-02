@@ -719,8 +719,31 @@ describe('setMode', () => {
       '17:35-17:45',
     ])
     expect(new Set(next.rows.map((r) => r.id)).size).toBe(9)
-    expect(next.rows.every((r) => r.cells === undefined)).toBe(true)
     expectValid(next)
+  })
+
+  it('the derived rows carry the sessions: titles, speakers and track tags in the new columns', () => {
+    const next = setMode(cairoSample, 'table')
+    const [session, speaker, tag] = tableColumns(next).map((c) => c.id) as [string, string, string]
+    const row = (start: string) => next.rows.find((r) => r.start === start)!
+    expect(row('14:20').cells).toEqual({
+      [session]:
+        'Beyond the Prompt: Context and Harness Engineering for the Modern Developer / Safeguarding Agents with Agents Sandbox: A hands-on lab',
+      [speaker]: 'Tarek Alabd, Abdelfettah Sghiouar',
+      [tag]: 'Beginner, Intermediate',
+    })
+    // Sessions across every track are tagged Everyone, and have no speaker.
+    expect(row('15:05').cells).toEqual({ [session]: 'Lunch', [tag]: 'Everyone' })
+    expect(row('17:05').cells).toEqual({ [session]: 'Build with Gemma 4', [speaker]: 'Eman Alrefai', [tag]: 'Beginner' })
+    expect(next.rows.every((r) => Object.keys(r.cells ?? {}).length > 0)).toBe(true)
+    expectValid(next)
+  })
+
+  it('Everyone follows the event language', () => {
+    const arabic = { ...cairoSample, event: { ...cairoSample.event, locale: 'ar-EG' } }
+    const next = setMode(arabic, 'table')
+    const tag = tableColumns(next)[2]!.id
+    expect(next.rows.find((r) => r.start === '15:05')?.cells?.[tag]).toBe('للجميع')
   })
 
   it('the derived rows carry the slot notes, and existing rows are never touched', () => {

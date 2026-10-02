@@ -256,7 +256,7 @@ function CellInput({ column, label, value, r, onEnter, onChange }: CellProps) {
     case 'person':
       return <input type="text" dir="auto" list={SPEAKER_LIST_ID} {...common} />
     case 'tag':
-      return <input type="text" dir="auto" placeholder="comma-separated" {...common} />
+      return <input type="text" dir="auto" placeholder="tag, tag" {...common} />
     default:
       return <input type="text" dir="auto" {...common} />
   }

@@ -749,7 +749,7 @@ describe('Editor', () => {
     it('tag cells become chips', async () => {
       const user = await openTable()
       const tag = screen.getByLabelText('Tag for row 09:00')
-      expect(tag).toHaveAttribute('placeholder', 'comma-separated')
+      expect(tag).toHaveAttribute('placeholder', 'tag, tag')
       await user.type(tag, 'Design, Q&A')
       expect(preview()).toContain('<span class="tags"><span class="chip"')
       expect(preview()).toContain('>Design</span>')
@@ -838,6 +838,8 @@ describe('Editor', () => {
       await loadSample(user)
       await user.click(screen.getByRole('button', { name: 'Table' }))
       expect(count('rows')).toBe(9) // first switch: one row per grid slot
+      expect(screen.getByLabelText('Session for row 13:30')).toHaveValue('Registration & Welcome') // carried over from the grid
+      await user.clear(screen.getByLabelText('Session for row 13:30'))
       await user.type(screen.getByLabelText('Session for row 13:30'), 'Kept cell')
       await user.click(screen.getByRole('button', { name: 'Track grid' }))
       expect(count('items')).toBe(12)
