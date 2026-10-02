@@ -5,11 +5,19 @@
 import type { Item, Schedule, Speaker } from '../model/schema.ts'
 import { TIME_PATTERN, toMinutes } from '../model/time.ts'
 import { agendaCss } from './agendaCss.ts'
-import { resolveLabels, type ResolvedLabels } from './labels.ts'
+import { googleFontsUrl } from './fonts.ts'
+import { fillSessionFallback, resolveLabels, type ResolvedLabels } from './labels.ts'
+import {
+  formatEventDate,
+  formatTime,
+  resolveDirection,
+  resolveLocale,
+  timezoneShortName,
+  type TimeFormat,
+} from './locale.ts'
 import { cssColor, escapeHtml, renderInlineMarkup, safeDataImage, safeHttpUrl } from './escape.ts'
 
 const FALLBACK_COLOR = '#888888'
-const MONTHS_AND_DAYS = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' } as const
 
 /* ---------- small helpers ---------- */
 
@@ -23,41 +31,16 @@ function dataAttr(name: string, time: string): string {
   return minutes === null ? '' : ` data-${name}="${minutes}"`
 }
 
-/** "Friday, 2 October 2026" (en-GB), independent of the ICU version's punctuation. */
-export function formatEventDate(date: string): string {
-  const parsed = new Date(`${date}T00:00:00Z`)
-  if (Number.isNaN(parsed.getTime())) return date
-  try {
-    const parts = new Intl.DateTimeFormat('en-GB', MONTHS_AND_DAYS).formatToParts(parsed)
-    const pick = (type: string) => parts.find((p) => p.type === type)?.value ?? ''
-    return `${pick('weekday')}, ${pick('day')} ${pick('month')} ${pick('year')}`
-  } catch {
-    return date
-  }
-}
-
-/** Short zone name such as "EEST" for the event's date, or '' when it cannot be determined. */
-export function timezoneShortName(date: string, timezone: string): string {
-  try {
-    const noon = new Date(`${date}T12:00:00Z`)
-    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, timeZoneName: 'short' }).formatToParts(noon)
-    return parts.find((p) => p.type === 'timeZoneName')?.value ?? ''
-  } catch {
-    return ''
-  }
-}
-
 /** Initials from the first two words, skipping prefixes like "Dr."; a single word gives one letter. */
 export function initials(name: string): string {
   const words = name
     .split(/\s+/)
     .filter((w) => w !== '' && !w.endsWith('.'))
   if (words.length === 0) return Array.from(name.trim())[0]?.toUpperCase() ?? ''
-  return words
-    .slice(0, 2)
-    .map((w) => Array.from(w)[0] ?? '')
-    .join('')
-    .toUpperCase()
+  const letters = words.slice(0, 2).map((w) => Array.from(w)[0] ?? '')
+  // Adjacent Arabic letters would join into one glyph cluster; a zero-width non-joiner keeps them apart.
+  const separator = letters.length > 1 && letters.every((l) => /\p{Script=Arabic}/u.test(l)) ? '\u200c' : ''
+  return letters.join(separator).toUpperCase()
 }
 
 /** Wrap the first occurrence of `highlight` in `<b>`, escaping every piece separately. */
@@ -78,6 +61,26 @@ function legendLabel(name: string, suffix: string): string {
 }
 
 /* ---------- layout ---------- */
+
+/** Everything the markup needs besides the schedule: wording, locale and animation order. */
+interface Context {
+  labels: ResolvedLabels
+  locale: string
+  timeFormat: TimeFormat
+  stagger: boolean
+  /** Next card index for the stagger delay. */
+  cards: { next: number }
+}
+
+function fmt(ctx: Context, time: string): string {
+  return formatTime(time, ctx.locale, ctx.timeFormat)
+}
+
+/** Inline style fragment giving the card its place in the stagger sequence (capped at 20). */
+function stagger(ctx: Context): string {
+  if (!ctx.stagger) return ''
+  return `;--i:${Math.min(ctx.cards.next++, 20)}`
+}
 
 interface Placed {
   item: Item
@@ -123,11 +126,12 @@ function placeItems(schedule: Schedule): Placed[] {
   return placed
 }
 
-function renderItem(schedule: Schedule, labels: ResolvedLabels, p: Placed, gridRow: string): string {
+function renderItem(schedule: Schedule, ctx: Context, p: Placed, gridRow: string): string {
   const { item } = p
+  const { labels } = ctx
   const column = schedule.columns[p.firstCol]
   const color = cssColor(column?.color ?? '', FALLBACK_COLOR)
-  const placement = `grid-row:${gridRow};grid-column:${p.firstCol + 2} / ${p.lastCol + 3}`
+  const placement = `grid-row:${gridRow};grid-column:${p.firstCol + 2} / ${p.lastCol + 3}${stagger(ctx)}`
   const times = dataAttr('s', p.start) + dataAttr('e', p.end)
   const title = `<h3>${escapeHtml(item.title)}</h3>`
   const speaker = item.speaker
@@ -144,13 +148,13 @@ function renderItem(schedule: Schedule, labels: ResolvedLabels, p: Placed, gridR
   const spanned = schedule.columns.slice(p.firstCol, p.lastCol + 1)
   const chipLabel = p.spansAll && spanned.length > 1 ? '' : spanned.map((c) => c.name).join(' + ')
   const chip = chipLabel ? `<span class="chip" style="--c:${color}">${escapeHtml(chipLabel)}</span>` : ''
-  const when = `<div class="when">${escapeHtml(p.start)} – ${escapeHtml(p.end)}</div>`
+  const when = `<div class="when">${escapeHtml(fmt(ctx, p.start))} – ${escapeHtml(fmt(ctx, p.end))}</div>`
   return `<div class="ev track" style="${placement};--c:${color}"${times}>${chip}${title}${speaker}${when}</div>`
 }
 
 /* ---------- sections ---------- */
 
-function renderHeader(schedule: Schedule, placed: Placed[]): string {
+function renderHeader(schedule: Schedule, ctx: Context, placed: Placed[]): string {
   const { event, branding } = schedule
   const logoSrc = safeDataImage(branding.logo)
   const logo = logoSrc ? `<img class="logo" src="${escapeHtml(logoSrc)}" alt="">` : ''
@@ -161,8 +165,8 @@ function renderHeader(schedule: Schedule, placed: Placed[]): string {
     .reduce<string | null>((best, t) => (best === null || (minutesOf(t) ?? 0) > (minutesOf(best) ?? 0) ? t : best), null)
   let time = ''
   if (first && minutesOf(first.start) !== null && latest !== null) {
-    const zone = timezoneShortName(event.date, event.timezone)
-    time = `<span class="time">${escapeHtml(first.start)} – ${escapeHtml(latest)}${zone ? ` ${escapeHtml(zone)}` : ''}</span>`
+    const zone = timezoneShortName(event.date, event.timezone, ctx.locale)
+    time = `<span class="time">${escapeHtml(fmt(ctx, first.start))} – ${escapeHtml(fmt(ctx, latest))}${zone ? ` ${escapeHtml(zone)}` : ''}</span>`
   }
   const venue = event.venue ? `<span>${escapeHtml(event.venue)}</span>` : ''
   const status = event.status ? `<span>${escapeHtml(event.status)}</span>` : ''
@@ -170,7 +174,7 @@ function renderHeader(schedule: Schedule, placed: Placed[]): string {
 
   return `<header class="head">
     ${logo}
-    <div class="eyebrow">${escapeHtml(formatEventDate(event.date))}</div>
+    <div class="eyebrow">${escapeHtml(formatEventDate(event.date, ctx.locale))}</div>
     <h1>${renderTitle(event.title, event.titleHighlight)}</h1>
     ${meta}
   </header>`
@@ -187,7 +191,8 @@ function renderLegend(schedule: Schedule, labels: ResolvedLabels, placed: Placed
   return `<div class="legend">${chips.join('')}</div>`
 }
 
-function renderAgendaGrid(schedule: Schedule, labels: ResolvedLabels, placed: Placed[]): string {
+function renderAgendaGrid(schedule: Schedule, ctx: Context, placed: Placed[]): string {
+  const { labels } = ctx
   const { rows, columns } = schedule
   const lanes = columns.length
 
@@ -228,18 +233,19 @@ function renderAgendaGrid(schedule: Schedule, labels: ResolvedLabels, placed: Pl
       out.push(`<div class="lane-head" aria-hidden="true" style="grid-row:${laneLine};grid-column:1 / -1">${heads}</div>`)
     }
     out.push(
-      `<div class="t" style="grid-row:${line};grid-column:1"><b>${escapeHtml(row.start)}</b>${escapeHtml(row.end)}</div>`,
+      `<div class="t" style="grid-row:${line};grid-column:1"><b>${escapeHtml(fmt(ctx, row.start))}</b>${escapeHtml(fmt(ctx, row.end))}</div>`,
     )
 
     for (const p of byRow.get(i) ?? []) {
       const span = (rowLine[p.lastRow] as number) - line + 1
-      out.push(renderItem(schedule, labels, p, span > 1 ? `${line} / span ${span}` : `${line}`))
+      out.push(renderItem(schedule, ctx, p, span > 1 ? `${line} / span ${span}` : `${line}`))
 
       // The item runs past its last row: mark the following rows it still occupies.
       const endMinutes = minutesOf(p.end)
       const lastRowEnd = minutesOf(rows[p.lastRow]?.end)
       if (endMinutes === null || lastRowEnd === null || endMinutes <= lastRowEnd) continue
-      const continuation = p.item.continuationLabel?.trim() || `${columns[p.firstCol]?.name ?? ''} session`
+      const continuation =
+        p.item.continuationLabel?.trim() || fillSessionFallback(labels.sessionFallback, columns[p.firstCol]?.name ?? '')
       const color = cssColor(columns[p.firstCol]?.color ?? '', FALLBACK_COLOR)
       for (let r = p.lastRow + 1; r < rows.length; r++) {
         const rowStart = minutesOf(rows[r]?.start)
@@ -248,7 +254,7 @@ function renderAgendaGrid(schedule: Schedule, labels: ResolvedLabels, placed: Pl
         for (let c = p.firstCol; c <= p.lastCol; c++) if (occupied.has(`${r}:${c}`)) free = false
         if (!free) continue
         out.push(
-          `<div class="ev ghost" style="grid-row:${rowLine[r]};grid-column:${p.firstCol + 2} / ${p.lastCol + 3};--c:${color}"><span>${escapeHtml(continuation)} ${escapeHtml(labels.continuesUntil)} ${escapeHtml(p.end)}</span></div>`,
+          `<div class="ev ghost" style="grid-row:${rowLine[r]};grid-column:${p.firstCol + 2} / ${p.lastCol + 3};--c:${color}${stagger(ctx)}"><span>${escapeHtml(continuation)} ${escapeHtml(labels.continuesUntil)} ${escapeHtml(fmt(ctx, p.end))}</span></div>`,
         )
       }
     }
@@ -271,19 +277,31 @@ function renderSpeaker(speaker: Speaker): string {
 
 /* ---------- public API ---------- */
 
+function makeContext(schedule: Schedule): Context {
+  const locale = resolveLocale(schedule.event.locale)
+  return {
+    labels: resolveLabels(schedule.labels, locale),
+    locale,
+    timeFormat: schedule.event.timeFormat ?? '24h',
+    stagger: schedule.branding.motion.preset === 'stagger',
+    cards: { next: 0 },
+  }
+}
+
 /** The `<main class="wrap">…</main>` markup for a schedule. */
 export function renderAgendaBody(schedule: Schedule): string {
-  const labels = resolveLabels(schedule.labels)
+  const ctx = makeContext(schedule)
+  const { labels } = ctx
   const placed = placeItems(schedule)
   const note = schedule.event.notes.trim()
   const url = safeHttpUrl(schedule.event.url)
 
-  const parts = [renderHeader(schedule, placed)]
+  const parts = [renderHeader(schedule, ctx, placed)]
   if (note) parts.push(`<div class="parallel-note"><div>${renderInlineMarkup(schedule.event.notes)}</div></div>`)
   parts.push(`<section aria-labelledby="ag" class="sec">
     <h2 id="ag">${escapeHtml(labels.agenda)}</h2>
     ${renderLegend(schedule, labels, placed)}
-    ${renderAgendaGrid(schedule, labels, placed)}
+    ${renderAgendaGrid(schedule, ctx, placed)}
   </section>`)
   if (schedule.speakers.length > 0) {
     parts.push(`<section aria-labelledby="sp" class="sec">
@@ -297,15 +315,25 @@ export function renderAgendaBody(schedule: Schedule): string {
   return `<main class="wrap">\n${parts.join('\n')}\n</main>`
 }
 
+export interface RenderOptions {
+  /** Override the schedule's theme, e.g. for the editor's light/dark preview toggle. */
+  forceTheme?: 'light' | 'dark'
+}
+
 /** A complete, self-contained HTML document (no scripts). */
-export function renderDocument(schedule: Schedule): string {
+export function renderDocument(schedule: Schedule, options: RenderOptions = {}): string {
+  const locale = resolveLocale(schedule.event.locale)
+  const theme = options.forceTheme ?? schedule.branding.theme
+  const themeAttr = theme === 'light' || theme === 'dark' ? ` data-theme="${theme}"` : ''
+  const fontsUrl = googleFontsUrl(schedule.branding.fonts.webFonts)
+  const fontsLink = fontsUrl ? `<link rel="stylesheet" href="${escapeHtml(fontsUrl)}">\n` : ''
   return `<!doctype html>
-<html lang="en">
+<html lang="${escapeHtml(locale)}" dir="${resolveDirection(schedule.event)}"${themeAttr}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>${escapeHtml(schedule.event.title)}</title>
-<style>
+${fontsLink}<style>
 ${agendaCss(schedule)}
 </style>
 </head>

@@ -44,12 +44,13 @@ export function ItemForm({ schedule, item, apply, onClose }: Props) {
       </div>
       <label className="field">
         <span>Item title</span>
-        <input type="text" value={item.title} onChange={(e) => apply((s) => updateItem(s, item.id, { title: e.target.value }))} />
+        <input type="text" dir="auto" value={item.title} onChange={(e) => apply((s) => updateItem(s, item.id, { title: e.target.value }))} />
       </label>
       <label className="field">
         <span>Speaker</span>
         <input
           type="text"
+          dir="auto"
           value={item.speaker ?? ''}
           onChange={(e) => apply((s) => updateItem(s, item.id, { speaker: e.target.value }))}
         />
@@ -87,6 +88,7 @@ export function ItemForm({ schedule, item, apply, onClose }: Props) {
         <span>Continuation label</span>
         <input
           type="text"
+          dir="auto"
           value={item.continuationLabel ?? ''}
           placeholder="e.g. Workshop A session"
           onChange={(e) => apply((s) => updateItem(s, item.id, { continuationLabel: e.target.value }))}

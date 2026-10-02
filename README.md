@@ -39,6 +39,13 @@ Cross-field rules (ids unique per collection, items point at existing rows and c
 - `src/editor/*.tsx` are the panels (event, columns, grid, item form) and the live preview.
 - `src/samples/cairo.ts` is the Developers Day Cairo seed behind **Load sample**.
 
+### Branding, theme, motion and locale
+
+- `branding` (logo and height, light and optional dark colours, fonts and Google Fonts families, theme, motion) is edited in the **Branding** panel. The dark palette is derived from the light one in `src/render/theme.ts` unless `darkColors` is set. Defaults for colours and fonts live in `src/model/brandDefaults.ts`.
+- Dark mode follows the reference pattern: variables under `prefers-color-scheme:dark` and `[data-theme="dark"]`. `renderDocument(schedule, { forceTheme })` overrides the theme for the editor preview.
+- Motion is CSS only, wrapped in `prefers-reduced-motion: no-preference` and disabled for print. Nothing is emitted when motion is off.
+- `event.locale`, `direction` and `timeFormat` drive `<html lang dir>`, the date and time formatting (`src/render/locale.ts`) and the built-in labels for en, ar and fr (`src/render/labels.ts`). All new schema fields are optional, so existing v1 files stay valid.
+
 ## File format and migrations
 
 Saved files are pretty-printed JSON with a top-level `version`. On load, `migrate` (`src/model/migrate.ts`) upgrades older files step by step to `CURRENT_VERSION`, and rejects missing or newer versions with a clear error. Adding version 2 means bumping `CURRENT_VERSION`, adding one upgrader function for `1`, and updating the schema.
@@ -49,7 +56,7 @@ Autosave uses the `localStorage` key `schedule-builder:v1` and is validated the 
 
 - [x] **M1** Foundation: scaffold, schema, validation, autosave, JSON open/save
 - [x] **M2** Track-grid editor and renderer
-- [ ] **M3** Branding and motion
+- [x] **M3** Branding, dark theme, motion, locale and RTL
 - [ ] **M4** Export PDF/HTML and re-import
 - [ ] **M5** Table mode
 - [ ] **M6** Templates

@@ -42,6 +42,17 @@ const IdSchema = z.string().min(1, 'Id must not be empty')
 
 /* ---------- parts ---------- */
 
+function isCanonicalLocale(value: string): boolean {
+  try {
+    return Intl.getCanonicalLocales(value).length === 1
+  } catch {
+    return false
+  }
+}
+
+/** BCP 47 language tag, e.g. "ar-EG". */
+export const LocaleSchema = z.string().refine(isCanonicalLocale, 'Expected a BCP 47 locale such as "en-GB" or "ar-EG"')
+
 export const EventSchema = z.object({
   title: z.string(),
   /** Substring of `title` rendered in the accent colour. */
@@ -53,26 +64,43 @@ export const EventSchema = z.object({
   url: z.string().optional(),
   /** e.g. "You're registered". */
   status: z.string().optional(),
+  /** BCP 47 tag used for dates, times and default labels. Default "en-GB". */
+  locale: LocaleSchema.optional(),
+  /** Text direction; "auto" follows the locale's language. Default "auto". */
+  direction: z.enum(['auto', 'ltr', 'rtl']).optional(),
+  /** Default "24h". */
+  timeFormat: z.enum(['24h', '12h']).optional(),
+})
+
+/** A Google Fonts family name, e.g. "Open Sans". */
+export const WebFontSchema = z.string().regex(/^[A-Za-z0-9 ]{1,40}$/, 'Expected a Google Fonts family name (letters, digits, spaces)')
+
+export const ColorsSchema = z.object({
+  primary: HexColorSchema,
+  background: HexColorSchema,
+  surface: HexColorSchema,
+  text: HexColorSchema,
+  muted: HexColorSchema,
+  line: HexColorSchema,
+  accent: HexColorSchema,
+  /** Colour of the notes callout; defaults to #f9ab00 when omitted. */
+  note: HexColorSchema.optional(),
 })
 
 export const BrandingSchema = z.object({
   logo: DataImageSchema.nullable(),
-  colors: z.object({
-    primary: HexColorSchema,
-    background: HexColorSchema,
-    surface: HexColorSchema,
-    text: HexColorSchema,
-    muted: HexColorSchema,
-    line: HexColorSchema,
-    accent: HexColorSchema,
-    /** Colour of the notes callout; defaults to #f9ab00 when omitted. */
-    note: HexColorSchema.optional(),
-  }),
+  /** Logo height in px (16-120). When omitted the logo is capped at 40px high. */
+  logoHeight: z.number().int().min(16).max(120).optional(),
+  colors: ColorsSchema,
+  /** Dark palette; derived automatically from `colors` when omitted. */
+  darkColors: ColorsSchema.optional(),
   /** CSS font-family strings. */
   fonts: z.object({
     display: z.string(),
     body: z.string(),
     mono: z.string(),
+    /** Google Fonts families to load with a single stylesheet link. */
+    webFonts: z.array(WebFontSchema).optional(),
   }),
   theme: z.enum(['light', 'dark', 'auto']),
   motion: z.object({
@@ -87,6 +115,8 @@ export const LabelsSchema = z.object({
   speakers: z.string().optional(),
   everyone: z.string().optional(),
   speakerPrefix: z.string().optional(),
+  /** Template for a continuation ghost cell without its own label; `{track}` is the column name. */
+  sessionFallback: z.string().optional(),
   trackSuffix: z.string().optional(),
   continuesUntil: z.string().optional(),
   eventLink: z.string().optional(),
@@ -208,6 +238,7 @@ export const ScheduleSchema = z
 
 export type Time = z.infer<typeof TimeSchema>
 export type EventInfo = z.infer<typeof EventSchema>
+export type Colors = z.infer<typeof ColorsSchema>
 export type Branding = z.infer<typeof BrandingSchema>
 export type Column = z.infer<typeof ColumnSchema>
 export type Row = z.infer<typeof RowSchema>

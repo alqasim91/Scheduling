@@ -61,7 +61,7 @@ describe('escaping and sanitising', () => {
     }
     const css = agendaCss(s)
     expect(css).not.toContain('}body{background:red')
-    expect(css).toContain('--display:Arialbodybackground:red;')
+    expect(css).toContain('--display:Arialbodybackground:red, sans-serif;')
     expect(css).not.toMatch(/--mono:[^;]*[<>\\]/)
     expect(renderDocument(s)).not.toContain('<script')
     expect(cssFontFamily("'Open Sans", 'sans-serif')).toBe('Open Sans')

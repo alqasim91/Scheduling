@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App.tsx'
@@ -219,5 +219,179 @@ describe('Editor', () => {
     expect(screen.getByRole('button', { name: 'Move column 1 up' })).toBeDisabled()
     const group = screen.getByRole('heading', { name: 'Columns' }).closest('section') as HTMLElement
     expect(within(group).getByLabelText('Column 1 color')).toBeInTheDocument()
+  })
+
+  describe('branding panel', () => {
+    const png = (bytes: number, type = 'image/png', name = 'logo.png') =>
+      new File([new Uint8Array(bytes)], name, { type })
+
+    it('uploads a logo as a data URI, shows it in the preview, and removes it', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      expect(screen.getByRole('button', { name: 'Remove logo' })).toBeDisabled()
+      await user.upload(screen.getByLabelText('Logo file'), png(200))
+      await waitFor(() => expect(preview()).toContain('<img class="logo" src="data:image/png;base64,'))
+      expect(screen.getByAltText('Logo preview')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Remove logo' }))
+      expect(preview()).not.toContain('class="logo"')
+      expect(screen.queryByAltText('Logo preview')).not.toBeInTheDocument()
+    })
+
+    it('rejects a logo over 512 KB or of the wrong type with an inline error', async () => {
+      const user = userEvent.setup({ applyAccept: false })
+      render(<App />)
+      await user.upload(screen.getByLabelText('Logo file'), png(512 * 1024 + 1))
+      expect(await screen.findByRole('alert')).toHaveTextContent(/too large/i)
+      expect(preview()).not.toContain('class="logo"')
+      await user.upload(screen.getByLabelText('Logo file'), png(10, 'application/pdf', 'doc.pdf'))
+      expect(await screen.findByRole('alert')).toHaveTextContent(/PNG, JPEG, WebP, GIF or SVG/)
+      expect(preview()).not.toContain('class="logo"')
+      // A good file clears the error.
+      await user.upload(screen.getByLabelText('Logo file'), png(10))
+      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+    })
+
+    it('sets the logo height within 16-120 only', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      const height = screen.getByLabelText('Logo height (px)')
+      expect(height).toHaveValue('40')
+      await user.clear(height)
+      await user.type(height, '200')
+      expect(height).toHaveAttribute('aria-invalid', 'true')
+      expect(preview()).not.toContain('height:200px')
+      await user.clear(height)
+      await user.type(height, '72')
+      expect(preview()).toContain('height:72px')
+    })
+
+    it('edits colours, resets them, and toggles custom dark colours', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      fireEvent.change(screen.getByLabelText('Primary color'), { target: { value: '#123456' } })
+      expect(preview()).toContain('--primary:#123456')
+      await user.click(screen.getByRole('button', { name: 'Reset to defaults' }))
+      expect(preview()).not.toContain('--primary:#123456')
+      expect(screen.getByLabelText('Primary color')).toHaveValue('#0b57d0')
+
+      expect(screen.queryByLabelText('Dark primary color')).not.toBeInTheDocument()
+      await user.click(screen.getByLabelText('Customize dark colors'))
+      const dark = screen.getByLabelText('Dark background color')
+      expect(dark).toHaveValue('#131314') // the derived palette is copied in
+      fireEvent.change(dark, { target: { value: '#010203' } })
+      expect(preview()).toContain('--bg:#010203')
+      await user.click(screen.getByLabelText('Customize dark colors'))
+      expect(screen.queryByLabelText('Dark background color')).not.toBeInTheDocument()
+      expect(preview()).not.toContain('--bg:#010203')
+    })
+
+    it('theme select sets data-theme; the preview toggle only shows for auto', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      const htmlTag = () => /<html[^>]*>/.exec(preview())?.[0] ?? ''
+      expect(screen.getByLabelText('Theme')).toHaveValue('auto')
+      expect(htmlTag()).not.toContain('data-theme')
+      const dark = screen.getByRole('button', { name: 'Dark' })
+      await user.click(dark)
+      expect(dark).toHaveAttribute('aria-pressed', 'true')
+      expect(htmlTag()).toContain('data-theme="dark"')
+      await user.click(screen.getByRole('button', { name: 'Light' }))
+      expect(htmlTag()).toContain('data-theme="light"')
+      await user.click(screen.getByRole('button', { name: 'Light' })) // unpress: follow the system again
+      expect(htmlTag()).not.toContain('data-theme')
+
+      await user.selectOptions(screen.getByLabelText('Theme'), 'dark')
+      expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
+      expect(htmlTag()).toContain('data-theme="dark"')
+    })
+
+    it('a web font preset adds its family and a stylesheet link', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      expect(preview()).not.toContain('<link')
+      await user.selectOptions(screen.getByLabelText('Display font'), 'cairo')
+      expect(screen.getByLabelText('Web fonts (Google Fonts)')).toHaveValue('Cairo')
+      expect(preview()).toContain('fonts.googleapis.com/css2?family=Cairo')
+      expect((screen.getByLabelText('Display font stack') as HTMLInputElement).value).toContain("'Cairo'")
+    })
+
+    it('rejects invalid web font names on blur and keeps the list', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      const field = screen.getByLabelText('Web fonts (Google Fonts)')
+      await user.type(field, 'Inter, Bad;Name')
+      expect(field).toHaveAttribute('aria-invalid', 'true')
+      await user.tab()
+      expect(field).toHaveValue('')
+      expect(preview()).not.toContain('<link')
+      await user.type(field, 'Inter, Lato')
+      await user.tab()
+      expect(preview()).toContain('family=Inter')
+      expect(preview()).toContain('family=Lato')
+    })
+
+    it('motion presets add animation css, and Replay remounts the preview', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      expect(preview()).not.toContain('animation')
+      await user.selectOptions(screen.getByLabelText('Motion'), 'stagger')
+      expect(preview()).toContain('animation-delay')
+      expect(preview()).toContain('prefers-reduced-motion')
+      await user.click(screen.getByLabelText('Animate logo'))
+      expect(preview()).toContain('@keyframes logo-in')
+      const before = screen.getByTitle('Preview')
+      await user.click(screen.getByRole('button', { name: 'Replay' }))
+      expect(screen.getByTitle('Preview')).not.toBe(before)
+    })
+  })
+
+  describe('language controls', () => {
+    it('Arabic (Egypt) gives a right-to-left Arabic page', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      await user.click(screen.getByRole('button', { name: 'Load sample' }))
+      expect(preview()).toContain('<html lang="en-GB" dir="ltr"')
+      await user.selectOptions(screen.getByLabelText('Language'), 'ar-EG')
+      expect(preview()).toContain('<html lang="ar-EG" dir="rtl"')
+      expect(preview()).toContain('الجدول')
+      expect(preview()).toContain('١٣:٣٠')
+      await user.selectOptions(screen.getByLabelText('Direction'), 'ltr')
+      expect(preview()).toContain('dir="ltr"')
+    })
+
+    it('Time format switches to 12-hour', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      await user.click(screen.getByRole('button', { name: 'Load sample' }))
+      await user.selectOptions(screen.getByLabelText('Language'), 'en-US')
+      await user.selectOptions(screen.getByLabelText('Time format'), '12h')
+      expect(preview()).toMatch(/1:30(&nbsp;|\s|\u00a0)PM/)
+    })
+
+    it('a custom locale is validated before it is used', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      await user.selectOptions(screen.getByLabelText('Language'), 'custom')
+      const field = screen.getByLabelText('Custom locale')
+      await user.clear(field)
+      await user.type(field, 'not a locale')
+      expect(field).toHaveAttribute('aria-invalid', 'true')
+      await user.tab() // invalid: reverts, nothing is committed
+      expect(field).toHaveValue('en-GB')
+      expect(preview()).toContain('lang="en-GB"')
+      await user.clear(field)
+      await user.type(field, 'fr-CA')
+      expect(preview()).toContain('lang="en-GB"') // committed on blur, not while typing
+      await user.tab()
+      expect(preview()).toContain('lang="fr-CA"')
+      expect(preview()).toContain('Programme')
+    })
+
+    it('every free-text field is dir="auto"', () => {
+      render(<App />)
+      for (const label of ['Event title', 'Title highlight', 'Venue', 'Status', 'Notes', 'Column 1 name', 'Row 1 note']) {
+        expect(screen.getByLabelText(label), label).toHaveAttribute('dir', 'auto')
+      }
+    })
   })
 })

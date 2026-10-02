@@ -22,6 +22,7 @@ export function ColumnsPanel({ schedule, apply }: Props) {
           <li key={column.id} className="columns__item">
             <input
               type="text"
+              dir="auto"
               aria-label={`Column ${i + 1} name`}
               value={column.name}
               onChange={(e) => apply((s) => renameColumn(s, column.id, e.target.value))}

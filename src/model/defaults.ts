@@ -1,3 +1,4 @@
+import { DEFAULT_COLORS, DEFAULT_FONTS } from './brandDefaults.ts'
 import { newId } from './ids.ts'
 import type { Schedule } from './schema.ts'
 
@@ -28,20 +29,8 @@ export function createEmptySchedule(): Schedule {
     },
     branding: {
       logo: null,
-      colors: {
-        primary: '#0b57d0',
-        background: '#f8fafd',
-        surface: '#ffffff',
-        text: '#1f1f1f',
-        muted: '#444746',
-        line: '#c4c7c5',
-        accent: '#0b57d0',
-      },
-      fonts: {
-        display: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-        body: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-        mono: 'ui-monospace, Menlo, Consolas, monospace',
-      },
+      colors: { ...DEFAULT_COLORS },
+      fonts: { ...DEFAULT_FONTS },
       theme: 'auto',
       motion: { preset: 'none', logoAnimation: false },
     },

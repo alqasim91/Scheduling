@@ -74,12 +74,37 @@ button:hover {
 .editor__preview {
   border-left: 1px solid #c4c7c5;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #c4c7c5;
+  background: #fff;
+}
+
+.preview-bar__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #444746;
+}
+
+button[aria-pressed='true'] {
+  background: #e8f0fe;
+  border-color: #0b57d0;
 }
 
 .preview {
   display: block;
   width: 100%;
-  height: 100%;
+  flex: 1;
   min-height: 70vh;
   border: 0;
   background: #fff;
@@ -349,4 +374,56 @@ button.danger {
   margin-top: -6px;
   font-size: 12px;
   color: #444746;
+}
+
+.group {
+  border: 1px solid #c4c7c5;
+  border-radius: 8px;
+  padding: 8px 12px 12px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.group legend {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0 4px;
+}
+
+.colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.color,
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.color input[type='color'] {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #c4c7c5;
+  border-radius: 6px;
+  background: none;
+}
+
+.logo-preview {
+  max-height: 40px;
+  max-width: 100%;
+  align-self: flex-start;
+}
+
+.font-role {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 8px;
 }

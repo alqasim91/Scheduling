@@ -93,6 +93,7 @@ export function GridPanel({ schedule, apply }: Props) {
                       <span>Row {n} note</span>
                       <input
                         type="text"
+                        dir="auto"
                         value={row.note ?? ''}
                         onChange={(e) => apply((s) => setRowNote(s, row.id, e.target.value))}
                       />
