@@ -13,6 +13,7 @@ import { JSDOM } from 'jsdom'
 import { rtlDemo } from '../src/render/__fixtures__/rtlDemo.ts'
 import { tableDemo } from '../src/render/__fixtures__/tableDemo.ts'
 import { tableDemoRtl } from '../src/render/__fixtures__/tableDemoRtl.ts'
+import { BUILTIN_TEMPLATES } from '../src/templates/builtin/index.ts'
 import { importFileText } from '../src/persistence/importFile.ts'
 import { cairoSample } from '../src/samples/cairo.ts'
 
@@ -56,6 +57,7 @@ const SYSTEM_FONT = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
  * exercised end to end. The report says which one ran.
  */
 async function fontCssFor(schedule) {
+  if ((schedule.branding.fonts.webFonts ?? []).length === 0) return { css: undefined, kind: 'system fonts (nothing to embed)', bytes: 0 }
   const real = await embedFonts(schedule, timed)
   if ('css' in real) return { css: real.css, kind: 'real Google Fonts', bytes: Buffer.byteLength(real.css) }
   if (!existsSync(SYSTEM_FONT)) return { css: undefined, kind: `none (${real.error})`, bytes: 0, reason: real.error }
@@ -105,6 +107,13 @@ try {
     { name: 'rtl', schedule: rtlDemo, families: ['Cairo', 'Tajawal'], maxPages: 1 },
     { name: 'table', schedule: tableDemo, families: ['Inter'], maxPages: 1 },
     { name: 'table-rtl', schedule: tableDemoRtl, families: ['Cairo', 'Tajawal'], maxPages: 1 },
+    // Every built-in template: offline export, import round-trip and a one-page PDF.
+    ...BUILTIN_TEMPLATES.map((t) => ({
+      name: `template-${t.id}`,
+      schedule: t.schedule,
+      families: t.schedule.branding.fonts.webFonts ?? [],
+      maxPages: 1,
+    })),
   ]) {
     const fonts = await fontCssFor(schedule)
     const html = buildExportHtml(schedule, { fontCss: fonts.css })

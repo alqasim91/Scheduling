@@ -1,6 +1,5 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { Editor } from './editor/Editor.tsx'
-import { createEmptySchedule } from './model/defaults.ts'
 import type { Schedule } from './model/schema.ts'
 import { buildExportHtml } from './export/exportHtml.ts'
 import { embedFonts } from './export/embedFonts.ts'
@@ -10,6 +9,13 @@ import { importFileText } from './persistence/importFile.ts'
 import { serializeSchedule } from './persistence/json.ts'
 import { STORAGE_KEY, loadAutosaved, useAutosave } from './persistence/useAutosave.ts'
 import { cairoSample } from './samples/cairo.ts'
+import { sniffTemplateText } from './templates/file.ts'
+import { Gallery } from './templates/Gallery.tsx'
+import { ImportTemplateDialog } from './templates/ImportTemplateDialog.tsx'
+import { canonical, instantiate } from './templates/instantiate.ts'
+import { SaveTemplateDialog } from './templates/SaveTemplateDialog.tsx'
+import type { TemplateContent } from './templates/types.ts'
+import { createEmptySchedule } from './model/defaults.ts'
 
 const MAX_SHOWN_ERRORS = 20
 
@@ -19,13 +25,24 @@ export default function App() {
   const [embed, setEmbed] = useState(true)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [dialog, setDialog] = useState<'gallery' | 'save' | null>(null)
+  const [pendingTemplate, setPendingTemplate] = useState<TemplateContent | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   useAutosave(STORAGE_KEY, schedule)
 
-  function handleNew() {
-    setSchedule(createEmptySchedule())
+  /** Replace the schedule with one from the gallery, confirming first if there is something to lose. */
+  function handleChoose(next: Schedule) {
+    const untouched = JSON.stringify(canonical(schedule)) === JSON.stringify(canonical(createEmptySchedule()))
+    if (
+      !untouched &&
+      !window.confirm('Replace the current schedule? Unsaved changes are kept only in autosave until replaced.')
+    ) {
+      return
+    }
+    setSchedule(next)
     setErrors([])
+    setDialog(null)
   }
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
@@ -33,7 +50,19 @@ export default function App() {
     const file = input.files?.[0]
     if (!file) return
     try {
-      const result = importFileText(await readFileAsText(file))
+      const text = await readFileAsText(file)
+      const template = sniffTemplateText(text)
+      if (template) {
+        // A template file: let the person choose between adding it and opening it.
+        if (template.ok) {
+          setPendingTemplate(template.value)
+          setErrors([])
+        } else {
+          setErrors(template.errors)
+        }
+        return
+      }
+      const result = importFileText(text)
       if (result.ok) {
         setSchedule(result.value)
         setErrors([])
@@ -93,8 +122,8 @@ export default function App() {
     <div className="app">
       <header className="toolbar">
         <h1 className="toolbar__title">Schedule Builder</h1>
-        <button type="button" onClick={handleNew}>
-          New
+        <button type="button" onClick={() => setDialog('gallery')}>
+          New…
         </button>
         <button type="button" onClick={() => fileInput.current?.click()}>
           Open…
@@ -104,6 +133,9 @@ export default function App() {
         </button>
         <button type="button" onClick={handleLoadSample}>
           Load sample
+        </button>
+        <button type="button" onClick={() => setDialog('save')}>
+          Save as template…
         </button>
         <span className="toolbar__sep" aria-hidden="true" />
         <button type="button" onClick={handleSaveHtml} disabled={busy}>
@@ -148,6 +180,32 @@ export default function App() {
       )}
 
       <Editor schedule={schedule} setSchedule={setSchedule} />
+
+      {dialog === 'gallery' && <Gallery onClose={() => setDialog(null)} onChoose={handleChoose} />}
+      {dialog === 'save' && (
+        <SaveTemplateDialog
+          schedule={schedule}
+          onClose={() => setDialog(null)}
+          onSaved={(name) => {
+            setDialog(null)
+            setNotice(`Saved “${name}” to My templates.`)
+          }}
+        />
+      )}
+      {pendingTemplate && (
+        <ImportTemplateDialog
+          content={pendingTemplate}
+          onClose={() => setPendingTemplate(null)}
+          onAdded={(name) => {
+            setPendingTemplate(null)
+            setNotice(`Added “${name}” to My templates.`)
+          }}
+          onOpenAsSchedule={() => {
+            setSchedule(instantiate({ schedule: pendingTemplate.schedule }))
+            setPendingTemplate(null)
+          }}
+        />
+      )}
     </div>
   )
 }

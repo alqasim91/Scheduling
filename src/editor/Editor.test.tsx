@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App.tsx'
 import { createEmptySchedule } from '../model/defaults.ts'
 import { STORAGE_KEY } from '../persistence/useAutosave.ts'
+import { startBlank } from '../test/helpers.ts'
 
 /** Tests start from the empty schedule; the app itself starts from the sample on first launch. */
 beforeEach(() => {
@@ -32,7 +33,7 @@ describe('Editor', () => {
     render(<App />)
     expect(preview()).toContain('Build with Gemma 4')
     expect(count('items')).toBe(12)
-    await user.click(screen.getByRole('button', { name: 'New' }))
+    await startBlank(user)
     expect(count('items')).toBe(0)
     expect(count('rows')).toBe(1)
     expect(preview()).not.toContain('Gemma')

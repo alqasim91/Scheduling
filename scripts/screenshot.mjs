@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
+import { createServer } from 'vite'
 import { embedFonts } from '../src/export/embedFonts.ts'
 import { buildExportHtml } from '../src/export/exportHtml.ts'
 import { rtlDemo } from '../src/render/__fixtures__/rtlDemo.ts'
@@ -11,6 +12,8 @@ import { tableDemo } from '../src/render/__fixtures__/tableDemo.ts'
 import { tableDemoRtl } from '../src/render/__fixtures__/tableDemoRtl.ts'
 import { renderDocument } from '../src/render/renderAgenda.ts'
 import { cairoSample } from '../src/samples/cairo.ts'
+import { BUILTIN_TEMPLATES } from '../src/templates/builtin/index.ts'
+import { TEMPLATES_KEY } from '../src/templates/store.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const outDir = join(root, 'test-results')
@@ -46,6 +49,12 @@ const targets = [
   { name: 'table', file: write('table.html', renderDocument(tableDemo)), viewports: [desktop, mobile] },
   { name: 'table-dark', file: write('table-dark.html', renderDocument(tableDemo, { forceTheme: 'dark' })), viewports: [desktop] },
   { name: 'table-rtl', file: write('table-rtl.html', renderDocument(tableDemoRtl)), viewports: [desktop] },
+  // Every built-in template, as the gallery would instantiate it.
+  ...BUILTIN_TEMPLATES.map((template) => ({
+    name: `template-${template.id}`,
+    file: write(`template-${template.id}.html`, renderDocument(template.schedule)),
+    viewports: [desktop],
+  })),
   {
     name: 'rendered-motion',
     file: write('cairo-motion.html', renderDocument(motionSample)),
@@ -131,6 +140,34 @@ try {
       console.log(`wrote ${png}`)
     }
     await context.close()
+  }
+
+  // The "New…" gallery dialog, in the real app served by Vite, with one user template saved.
+  const server = await createServer({ root, logLevel: 'error', server: { host: '127.0.0.1', port: 5199 } })
+  try {
+    await server.listen()
+    const base = server.resolvedUrls?.local?.[0] ?? 'http://127.0.0.1:5199/'
+    const context = await browser.newContext({ viewport: { width: 1240, height: 1180 } })
+    const mine = {
+      id: 'tpl_demo',
+      name: 'My conference (saved)',
+      description: 'A schedule saved from the editor.',
+      createdAt: new Date().toISOString(),
+      schedule: BUILTIN_TEMPLATES[0].schedule,
+    }
+    await context.addInitScript(([key, value]) => localStorage.setItem(key, value), [TEMPLATES_KEY, JSON.stringify([mine])])
+    const page = await context.newPage()
+    await page.route(/https?:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)\/.*/, (route) => route.abort())
+    await page.goto(base, { waitUntil: 'load' })
+    await page.getByRole('button', { name: 'New…' }).click()
+    await page.getByRole('dialog', { name: 'New schedule' }).waitFor()
+    await page.waitForTimeout(1500) // thumbnails are sandboxed iframes: give them a moment to paint
+    const gallery = join(outDir, 'gallery.png')
+    await page.screenshot({ path: gallery })
+    console.log(`wrote ${gallery}`)
+    await context.close()
+  } finally {
+    await server.close()
   }
 } finally {
   await browser.close()

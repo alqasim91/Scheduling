@@ -1,6 +1,6 @@
 # Schedule Builder
 
-A single-user web app for building event schedules (agendas): define tracks and time slots, place sessions on a grid, brand the result, and export it. Everything runs in the browser. There is no backend; data lives in JSON files you save and open, plus an automatic copy in `localStorage`.
+A single-user web app for building event schedules (agendas): define tracks and time slots, place sessions on a grid or a table, brand the result, and export it. Everything runs in the browser. There is no backend; data lives in JSON files you save and open, plus an automatic copy in `localStorage`.
 
 `reference/developers-day-cairo.html` is the target look for the rendered schedule.
 
@@ -51,6 +51,20 @@ Cross-field rules (ids unique per collection, items point at existing rows and c
 
 `mode: 'table'` renders one flat table: a time column (from `row.start`/`row.end`), then the non-track columns (`text`, `time`, `person`, `tag`) with values in `row.cells[columnId]`. Track-grid mode uses only `type: 'track'` columns and items; both sets live in `columns`, so switching mode (`setMode`) never deletes anything. Person cells that match a speaker name (case-insensitive) show the speaker's avatar; tag cells are comma-separated chips in the column colour; time cells follow the event's locale and 12h/24h setting. On narrow screens each row becomes a card with the column names as labels. The Now badge, motion, RTL, export, import and print work as in grid mode.
 
+### Templates
+
+- **New…** opens a gallery: *Start blank*, five built-in *Templates* (conference with two tracks, single-track meetup, workshop day, team offsite, Arabic conference) and *My templates*. Each card has a live, scaled, script-free preview of the rendered page. Choosing one asks before replacing a schedule that has changes, then loads a fresh copy (`instantiate`: every id regenerated, all references remapped, the date set to today in the template's timezone). All built-in content is generic placeholder text.
+- **Save as template…** stores the current schedule in `localStorage` (`schedule-builder:templates:v1`). Unticking *Include sessions, speakers and cell content* keeps the event shell, branding, labels, language, mode, columns, row times and notes and clears item titles, speakers and cells. If the browser is full you get a message and can still use *Export template file*.
+- My templates can be renamed, deleted (with confirmation) and exported. **Open…** recognises template files and offers *Add to My templates* or *Open as a schedule*.
+- **Template file format** (`<name>.template.json`):
+
+  ```json
+  { "kind": "schedule-template", "version": 1,
+    "template": { "name": "…", "description": "…", "schedule": { "version": 1, "…": "a normal schedule" } } }
+  ```
+
+  The schedule is validated like any other. The code lives in `src/templates/` (`file.ts`, `instantiate.ts`, `strip.ts`, `store.ts`, `builtin/`, and the dialogs).
+
 ### Export and re-import
 
 - **Save HTML** (`src/export/exportHtml.ts`) writes one file: the `renderDocument` page, the schedule as `<script type="application/json" id="schedule-data">` (with `<`, `>`, `&`, U+2028/9 escaped), a Content-Security-Policy meta, and a small ES5 script (`nowScript.ts`) that adds `now` to the cards running at the current time in the event's timezone. Fonts can be embedded for offline use (`embedFonts.ts` fetches Google Fonts limited to the characters on the page, capped at 3 MB); if that fails the file keeps the Google Fonts link and the editor says why.
@@ -70,4 +84,13 @@ Autosave uses the `localStorage` key `schedule-builder:v1` and is validated the 
 - [x] **M3** Branding, dark theme, motion, locale and RTL
 - [x] **M4** Export PDF/HTML and re-import
 - [x] **M5** Table mode
-- [ ] **M6** Templates
+- [x] **M6** Templates
+
+## User guide
+
+1. **Create.** Click **New…** and pick a template (or start blank), or **Load sample**. Edit the event details, then fill the grid or table. Switch between *Track grid* and *Table* at the top; nothing is lost when you switch.
+2. **Brand.** In **Branding** set the logo, colours (and optionally dark colours), fonts, theme and motion. In **Event** choose the language, direction and 12/24-hour times; the **Labels** section changes the fixed wording on the page. The preview on the right updates as you type, and *Preview: Light | Dark* shows both themes.
+3. **Export.** **Save HTML** writes one self-contained file (with fonts embedded for offline use when it can) that highlights what is happening now. **Export PDF** opens the print dialog; choose *Save as PDF*. **Save JSON** keeps the editable data.
+4. **Re-import.** **Open…** reads a saved `.json`, an exported `.html`, or a `.template.json`. Your work is also autosaved in the browser.
+5. **Reuse.** **Save as template…** keeps a schedule (or just its shell) under *My templates* for next time.
+

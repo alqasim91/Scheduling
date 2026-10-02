@@ -5,6 +5,7 @@ import App from './App.tsx'
 import { createEmptySchedule } from './model/defaults.ts'
 import { serializeSchedule } from './persistence/json.ts'
 import { STORAGE_KEY } from './persistence/useAutosave.ts'
+import { startBlank } from './test/helpers.ts'
 
 beforeEach(() => {
   localStorage.clear()
@@ -13,7 +14,7 @@ beforeEach(() => {
 describe('App', () => {
   it('renders the toolbar and the sample summary on first launch', () => {
     render(<App />)
-    expect(screen.getByRole('button', { name: 'New' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New…' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open…' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save JSON' })).toBeInTheDocument()
     expect(screen.getByTestId('summary-mode')).toHaveTextContent('track-grid')
@@ -60,7 +61,7 @@ describe('App', () => {
     const input = screen.getByLabelText('Event title')
     await user.clear(input)
     await user.type(input, 'Throwaway')
-    await user.click(screen.getByRole('button', { name: 'New' }))
+    await startBlank(user)
     expect(input).toHaveValue('Untitled event')
     expect(screen.getByTestId('summary-items')).toHaveTextContent('0')
   })

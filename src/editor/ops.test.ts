@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptySchedule } from '../model/defaults.ts'
 import { tableDemo } from '../render/__fixtures__/tableDemo.ts'
+import { BUILTIN_TEMPLATES } from '../templates/builtin/index.ts'
+import { instantiate } from '../templates/instantiate.ts'
 import type { Item, Schedule } from '../model/schema.ts'
 import { parseSchedule } from '../model/validate.ts'
 import { cairoSample } from '../samples/cairo.ts'
@@ -420,9 +422,15 @@ function checkInvariants(s: Schedule) {
   expect(occupancy(s).size, 'no overlapping items').toBe(cells)
 }
 
+const startingPoints: Array<[string, Schedule]> = [
+  ['Cairo sample', cairoSample],
+  ...BUILTIN_TEMPLATES.map((t): [string, Schedule] => [t.name, instantiate(t)]),
+]
+
 describe('random op sequences', () => {
-  for (const seed of [1, 7, 2026]) {
-    it(`keeps every output valid, ordered and overlap-free (seed ${seed})`, () => {
+  for (const [label, start] of startingPoints) {
+    for (const seed of [1, 7, 2026]) {
+    it(`keeps every output valid, ordered and overlap-free from ${label} (seed ${seed})`, () => {
       const rand = seeded(seed)
       const pick = <T>(list: readonly T[]): T | undefined => list[Math.floor(rand() * list.length)]
       const maybe = (id: string | undefined) => (rand() < 0.05 || id === undefined ? 'missing-id' : id)
@@ -430,7 +438,7 @@ describe('random op sequences', () => {
       const dirs: Direction[] = [-1, 1]
       const sides: Side[] = ['left', 'right']
 
-      let s: Schedule = cairoSample
+      let s: Schedule = start
       let changed = 0
       for (let step = 0; step < 200; step++) {
         const col = () => maybe(pick(s.columns)?.id)
@@ -471,6 +479,7 @@ describe('random op sequences', () => {
       // Both modes were exercised.
       expect(s.columns.length).toBeGreaterThan(0)
     })
+    }
   }
 })
 

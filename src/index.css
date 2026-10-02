@@ -486,3 +486,158 @@ button.danger {
   border-radius: 6px;
   resize: vertical;
 }
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(20, 22, 30, 0.5);
+}
+
+.modal {
+  box-sizing: border-box;
+  width: min(480px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 16px 20px 20px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+.modal--wide {
+  width: min(1040px, 100%);
+}
+
+.modal h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.modal h3 {
+  margin: 20px 0 8px;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #444746;
+}
+
+.modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal__form,
+.modal__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal__buttons {
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+button.primary {
+  background: #0b57d0;
+  border-color: #0b57d0;
+  color: #fff;
+}
+
+button.primary:hover {
+  background: #0842a0;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #c4c7c5;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.card__thumb {
+  height: 150px;
+  overflow: hidden;
+  background: #f8fafd;
+  border-bottom: 1px solid #c4c7c5;
+  pointer-events: none;
+}
+
+.thumb {
+  width: 900px;
+  height: 620px;
+  border: 0;
+  transform: scale(0.26);
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.card__body {
+  flex: 1;
+  padding: 10px 12px 4px;
+}
+
+.card__body h4 {
+  display: inline;
+  margin: 0 8px 4px 0;
+  font-size: 14px;
+}
+
+.card__body p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #444746;
+}
+
+.card__mode {
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #e8f0fe;
+  color: #0b57d0;
+}
+
+.card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px 12px;
+}
+
+.card__actions button {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.card__rename {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+
+.card__rename input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 8px;
+  border: 1px solid #c4c7c5;
+  border-radius: 8px;
+}

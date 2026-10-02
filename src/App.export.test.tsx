@@ -7,6 +7,7 @@ import { printHtml } from './export/printHtml.ts'
 import { createEmptySchedule } from './model/defaults.ts'
 import { downloadText } from './persistence/files.ts'
 import { cairoSample } from './samples/cairo.ts'
+import { startBlank } from './test/helpers.ts'
 
 vi.mock('./persistence/files.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./persistence/files.ts')>()),
@@ -88,7 +89,7 @@ describe('Save HTML', () => {
     vi.stubGlobal('fetch', fetchMock)
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'New' }))
+    await startBlank(user)
     await user.click(screen.getByRole('button', { name: 'Save HTML' }))
     await waitFor(() => expect(downloadText).toHaveBeenCalledTimes(1))
     expect(fetchMock).not.toHaveBeenCalled()
@@ -126,7 +127,7 @@ describe('Open an exported HTML file', () => {
   it('restores the schedule from the embedded data', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'New' }))
+    await startBlank(user)
     expect(screen.getByLabelText('Event title')).toHaveValue('Untitled event')
     const exported = buildExportHtml({ ...cairoSample, event: { ...cairoSample.event, title: 'Round trip </script>' } })
     await user.upload(screen.getByTestId('open-file'), new File([exported], 'event.html', { type: 'text/html' }))
