@@ -2,9 +2,13 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App.tsx'
+import { createEmptySchedule } from '../model/defaults.ts'
+import { STORAGE_KEY } from '../persistence/useAutosave.ts'
 
+/** Tests start from the empty schedule; the app itself starts from the sample on first launch. */
 beforeEach(() => {
   localStorage.clear()
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(createEmptySchedule()))
 })
 
 const preview = () => screen.getByTitle('Preview').getAttribute('srcdoc') ?? ''
@@ -20,6 +24,45 @@ describe('Editor', () => {
     expect(screen.getByLabelText('Event title')).toHaveValue('Google for Developers Day: Cairo')
     expect(count('rows')).toBe(9)
     expect(count('items')).toBe(12)
+  })
+
+  it('first launch with no autosave starts from the Cairo sample, and New empties it', async () => {
+    localStorage.clear()
+    const user = userEvent.setup()
+    render(<App />)
+    expect(preview()).toContain('Build with Gemma 4')
+    expect(count('items')).toBe(12)
+    await user.click(screen.getByRole('button', { name: 'New' }))
+    expect(count('items')).toBe(0)
+    expect(count('rows')).toBe(1)
+    expect(preview()).not.toContain('Gemma')
+  })
+
+  it('edits the labels and shows them in the preview', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByText('Labels'))
+    const agenda = screen.getByLabelText('Agenda heading')
+    expect(agenda).toHaveAttribute('placeholder', 'Agenda')
+    await user.type(agenda, 'Programme')
+    expect(preview()).toContain('<h2 id="ag">Programme</h2>')
+    await user.clear(agenda)
+    expect(preview()).toContain('<h2 id="ag">Agenda</h2>')
+  })
+
+  it('edits an item continuation label', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: /^\+ Add item \(row 1, Track 1\)/ }))
+    await user.click(screen.getByRole('button', { name: '+ Add row' }))
+    await user.type(screen.getByLabelText('End override'), '10:20')
+    await user.type(screen.getByLabelText('Continuation label'), 'Lab')
+    expect(preview()).toContain('Lab continues until 10:20')
+  })
+
+  it('uses a neutral timezone example', () => {
+    render(<App />)
+    expect(screen.getByLabelText('Timezone')).toHaveAttribute('placeholder', 'Europe/London')
   })
 
   it('+ Add column increases the column count', async () => {

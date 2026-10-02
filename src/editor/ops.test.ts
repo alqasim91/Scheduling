@@ -292,6 +292,14 @@ describe('items', () => {
     expect(updateItem(s, 'x', { variant: 'weird' as Item['variant'] })).toBe(s)
   })
 
+  it('updateItem sets and clears a continuation label', () => {
+    const s = withItem(grid(), { id: 'x', rowId: 'r1', columnIds: ['A'] })
+    const set = updateItem(s, 'x', { continuationLabel: 'Lab session' })
+    expect(item(set, 'x').continuationLabel).toBe('Lab session')
+    expectValid(set)
+    expect('continuationLabel' in item(updateItem(set, 'x', { continuationLabel: '' }), 'x')).toBe(false)
+  })
+
   it('removeItem deletes an item', () => {
     const s = withItem(grid(), { id: 'x', rowId: 'r1', columnIds: ['A'] })
     expect(removeItem(s, 'x').items).toEqual([])

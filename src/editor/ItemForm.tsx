@@ -84,6 +84,16 @@ export function ItemForm({ schedule, item, apply, onClose }: Props) {
         />
       </div>
       <label className="field">
+        <span>Continuation label</span>
+        <input
+          type="text"
+          value={item.continuationLabel ?? ''}
+          placeholder="e.g. Workshop A session"
+          onChange={(e) => apply((s) => updateItem(s, item.id, { continuationLabel: e.target.value }))}
+        />
+      </label>
+      <small className="field__hint">Shown in the empty cells below this item when it runs past its row.</small>
+      <label className="field">
         <span>Row span</span>
         <input
           type="number"

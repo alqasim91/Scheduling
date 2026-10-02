@@ -3,6 +3,7 @@ import type { Schedule } from '../model/schema.ts'
 import { cairoSample } from '../samples/cairo.ts'
 import { agendaCss } from './agendaCss.ts'
 import { escapeHtml, cssFontFamily } from './escape.ts'
+import { DEFAULT_LABELS, resolveLabels } from './labels.ts'
 import { initials, renderAgendaBody, renderDocument } from './renderAgenda.ts'
 
 function withEvent(patch: Partial<Schedule['event']>): Schedule {
@@ -165,7 +166,7 @@ describe('Cairo sample agenda', () => {
     const gemma = tracks.find((e) => e.textContent?.includes('Build with Gemma 4')) as Element
     expect(gridStyle(gemma, 'grid-column')).toBe('2 / 3')
     expect(gemma.querySelector('.chip')?.textContent).toBe('Beginner')
-    expect(gemma.querySelector('.spk')?.textContent).toBe('Eman Alrefai')
+    expect(gemma.querySelector('.spk')?.textContent).toBe('Speaker Eman Alrefai')
     expect(gemma.querySelector('.when')?.textContent).toBe('17:05 – 17:35')
     expect(gemma.getAttribute('style')).toContain('--c:#188038')
     const gke = tracks.find((e) => e.textContent?.includes('Scale Distributed')) as Element
@@ -179,7 +180,7 @@ describe('Cairo sample agenda', () => {
     const ghosts = [...doc.querySelectorAll('.ev.ghost')]
     expect(ghosts).toHaveLength(1)
     const ghost = ghosts[0] as Element
-    expect(ghost.textContent).toBe('Intermediate session continues until 17:20')
+    expect(ghost.textContent).toBe('Intermediate GKE session continues until 17:20')
     expect(gridStyle(ghost, 'grid-column')).toBe('3 / 4')
     const timeCell = [...doc.querySelectorAll('.t')].find((t) => t.querySelector('b')?.textContent === '17:05') as Element
     expect(gridStyle(ghost, 'grid-row')).toBe(gridStyle(timeCell, 'grid-row'))
@@ -222,6 +223,8 @@ describe('Cairo sample agenda', () => {
     expect(people).toHaveLength(8)
     const asma = people.find((p) => p.textContent?.includes('Asma')) as Element
     expect(asma.querySelector('.av')?.textContent).toBe('AM')
+    const ahmed = people.find((p) => p.textContent?.includes('Ahmed')) as Element
+    expect(ahmed.querySelector('.av')?.textContent).toBe('AA')
     expect(asma.querySelector('.av')?.getAttribute('style')).toContain('background:#d93025')
     expect(doc.querySelector('a.btn')?.getAttribute('href')).toBe(cairoSample.event.url)
   })
@@ -281,9 +284,129 @@ describe('layout edge cases', () => {
 
   it('initials handles one-word, prefixed and empty names', () => {
     expect(initials('Dr. Asma Merabet')).toBe('AM')
+    expect(initials('Ahmed Abu Eldahab')).toBe('AA')
+    expect(initials('Mary Jane Watson')).toBe('MJ')
     expect(initials('Cher')).toBe('C')
     expect(initials('Prof. Dr. X')).toBe('X')
     expect(initials('Dr.')).toBe('D')
     expect(initials('')).toBe('')
+  })
+})
+
+describe('continuation labels', () => {
+  const withLabel = (continuationLabel: string | undefined): Schedule => ({
+    ...cairoSample,
+    items: cairoSample.items.map((i) => (i.id === 'item-i3' ? { ...i, continuationLabel } : i)),
+  })
+  const ghostText = (s: Schedule) => parse(renderAgendaBody(s)).querySelector('.ev.ghost')?.textContent
+
+  it('falls back to "<first column name> session" without a label', () => {
+    expect(ghostText(withLabel(undefined))).toBe('Intermediate session continues until 17:20')
+    expect(ghostText(withLabel('  '))).toBe('Intermediate session continues until 17:20')
+  })
+
+  it('uses and escapes a custom label', () => {
+    expect(ghostText(withLabel('Workshop <A>'))).toBe('Workshop <A> continues until 17:20')
+    expect(renderAgendaBody(withLabel('Workshop <A>'))).toContain('Workshop &lt;A&gt; continues until')
+  })
+})
+
+describe('labels and branding without any event-specific text', () => {
+  const custom: Schedule = {
+    version: 1,
+    event: {
+      title: 'Harbour Product Summit',
+      date: '2027-03-09',
+      timezone: 'Europe/London',
+      venue: 'Pier 4',
+      notes: '**Heads up:** doors open early.',
+    },
+    branding: {
+      logo: null,
+      colors: {
+        primary: '#6a1b9a',
+        accent: '#e65100',
+        background: '#ffffff',
+        surface: '#fafafa',
+        text: '#111111',
+        muted: '#555555',
+        line: '#cccccc',
+        note: '#00897b',
+      },
+      fonts: {
+        display: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+        body: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+        mono: 'ui-monospace, Menlo, Consolas, monospace',
+      },
+      theme: 'light',
+      motion: { preset: 'none', logoAnimation: false },
+    },
+    labels: {
+      agenda: 'Programme',
+      speakers: 'Presenters',
+      everyone: 'All attendees',
+      speakerPrefix: 'Host',
+      trackSuffix: 'stream',
+      continuesUntil: 'carries on until',
+    },
+    mode: 'track-grid',
+    columns: [
+      { id: 'c1', name: 'Design', color: '#6a1b9a', type: 'track' },
+      { id: 'c2', name: 'Data', color: '#00897b', type: 'track' },
+      { id: 'c3', name: 'Ops', color: '#e65100', type: 'track' },
+    ],
+    rows: [
+      { id: 'r1', start: '09:00', end: '09:30' },
+      { id: 'r2', start: '09:30', end: '10:15' },
+      { id: 'r3', start: '10:15', end: '10:45' },
+    ],
+    items: [
+      { id: 'i1', rowId: 'r1', columnIds: ['c1', 'c2', 'c3'], title: 'Welcome', variant: 'break' },
+      { id: 'i2', rowId: 'r2', columnIds: ['c1'], title: 'Design systems', speaker: 'Sam Lee', end: '10:30', variant: 'session' },
+      { id: 'i3', rowId: 'r2', columnIds: ['c2'], title: 'Pipelines', variant: 'session' },
+    ],
+    speakers: [],
+  }
+  const html = renderDocument(custom)
+  const doc = parse(html)
+
+  it('contains no text from the Cairo sample', () => {
+    for (const word of ['Cairo', 'Google', 'Beginner', 'Intermediate', 'Speaker ', 'Official event page']) {
+      expect(html, word).not.toContain(word)
+    }
+    expect(doc.querySelector('.btn')).toBeNull()
+    expect(doc.querySelector('.people')).toBeNull()
+  })
+
+  it('shows the custom labels', () => {
+    expect(doc.querySelector('h2')?.textContent).toBe('Programme')
+    expect([...doc.querySelectorAll('.legend .chip')].map((c) => c.textContent)).toEqual([
+      'Design stream',
+      'Data stream',
+      'Ops stream',
+      'All attendees',
+    ])
+    expect(doc.querySelector('.spk')?.textContent).toBe('Host Sam Lee')
+    expect(doc.querySelector('.ev.ghost')?.textContent).toBe('Design session carries on until 10:30')
+    expect(doc.querySelectorAll('.lane-head > div')).toHaveLength(3)
+  })
+
+  it('uses the note colour and generic fonts', () => {
+    const css = agendaCss(custom)
+    expect(css).toContain('--note:#00897b;')
+    expect(css).not.toContain('#f9ab00')
+    expect(css).not.toMatch(/Google|Roboto Mono/)
+    expect(css).not.toContain('content:"Speaker')
+  })
+
+  it('applies the default labels and note colour when none are set', () => {
+    const bare: Schedule = { ...custom, labels: undefined, speakers: cairoSample.speakers.slice(0, 1), event: { ...custom.event, url: 'https://example.com' } }
+    const bareDoc = parse(renderAgendaBody(bare))
+    expect(bareDoc.querySelector('h2')?.textContent).toBe(DEFAULT_LABELS.agenda)
+    expect(bareDoc.querySelector('.btn')?.textContent).toBe(DEFAULT_LABELS.eventLink)
+    expect(agendaCss({ ...bare, branding: { ...bare.branding, colors: { ...bare.branding.colors, note: undefined } } })).toContain(
+      '--note:#f9ab00;',
+    )
+    expect(resolveLabels({ agenda: '   ', eventLink: 'RSVP' })).toEqual({ ...DEFAULT_LABELS, eventLink: 'RSVP' })
   })
 })

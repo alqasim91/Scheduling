@@ -10,7 +10,7 @@ import { cairoSample } from './samples/cairo.ts'
 const MAX_SHOWN_ERRORS = 20
 
 export default function App() {
-  const [schedule, setSchedule] = useState<Schedule>(() => loadAutosaved(STORAGE_KEY) ?? createEmptySchedule())
+  const [schedule, setSchedule] = useState<Schedule>(() => loadAutosaved(STORAGE_KEY) ?? structuredClone(cairoSample))
   const [errors, setErrors] = useState<string[]>([])
   const fileInput = useRef<HTMLInputElement>(null)
 

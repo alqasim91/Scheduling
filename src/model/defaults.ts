@@ -38,9 +38,9 @@ export function createEmptySchedule(): Schedule {
         accent: '#0b57d0',
       },
       fonts: {
-        display: "'Google Sans', Roboto, Arial, sans-serif",
-        body: "Roboto, 'Helvetica Neue', Arial, sans-serif",
-        mono: "'Roboto Mono', ui-monospace, Menlo, monospace",
+        display: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+        body: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+        mono: 'ui-monospace, Menlo, Consolas, monospace',
       },
       theme: 'auto',
       motion: { preset: 'none', logoAnimation: false },

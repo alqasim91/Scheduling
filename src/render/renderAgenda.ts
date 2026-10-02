@@ -5,6 +5,7 @@
 import type { Item, Schedule, Speaker } from '../model/schema.ts'
 import { TIME_PATTERN, toMinutes } from '../model/time.ts'
 import { agendaCss } from './agendaCss.ts'
+import { resolveLabels, type ResolvedLabels } from './labels.ts'
 import { cssColor, escapeHtml, renderInlineMarkup, safeDataImage, safeHttpUrl } from './escape.ts'
 
 const FALLBACK_COLOR = '#888888'
@@ -46,15 +47,17 @@ export function timezoneShortName(date: string, timezone: string): string {
   }
 }
 
-/** Initials from the first and last word, skipping prefixes like "Dr.". */
+/** Initials from the first two words, skipping prefixes like "Dr."; a single word gives one letter. */
 export function initials(name: string): string {
   const words = name
     .split(/\s+/)
     .filter((w) => w !== '' && !w.endsWith('.'))
   if (words.length === 0) return Array.from(name.trim())[0]?.toUpperCase() ?? ''
-  const first = Array.from(words[0] as string)[0] ?? ''
-  const last = words.length > 1 ? (Array.from(words[words.length - 1] as string)[0] ?? '') : ''
-  return (first + last).toUpperCase()
+  return words
+    .slice(0, 2)
+    .map((w) => Array.from(w)[0] ?? '')
+    .join('')
+    .toUpperCase()
 }
 
 /** Wrap the first occurrence of `highlight` in `<b>`, escaping every piece separately. */
@@ -68,9 +71,10 @@ function renderTitle(title: string, highlight: string | undefined): string {
   )
 }
 
-/** "Beginner track", but not "Track 1 track". */
-function legendLabel(name: string): string {
-  return /track/i.test(name) ? name : `${name} track`
+/** "<name> <suffix>", unless the name already contains the suffix (e.g. "Track 1"). */
+function legendLabel(name: string, suffix: string): string {
+  if (suffix === '' || name.toLowerCase().includes(suffix.toLowerCase())) return name
+  return `${name} ${suffix}`
 }
 
 /* ---------- layout ---------- */
@@ -119,14 +123,16 @@ function placeItems(schedule: Schedule): Placed[] {
   return placed
 }
 
-function renderItem(schedule: Schedule, p: Placed, gridRow: string): string {
+function renderItem(schedule: Schedule, labels: ResolvedLabels, p: Placed, gridRow: string): string {
   const { item } = p
   const column = schedule.columns[p.firstCol]
   const color = cssColor(column?.color ?? '', FALLBACK_COLOR)
   const placement = `grid-row:${gridRow};grid-column:${p.firstCol + 2} / ${p.lastCol + 3}`
   const times = dataAttr('s', p.start) + dataAttr('e', p.end)
   const title = `<h3>${escapeHtml(item.title)}</h3>`
-  const speaker = item.speaker ? `<div class="spk">${escapeHtml(item.speaker)}</div>` : ''
+  const speaker = item.speaker
+    ? `<div class="spk"><span class="lbl">${escapeHtml(labels.speakerPrefix)}</span> ${escapeHtml(item.speaker)}</div>`
+    : ''
 
   if (item.variant === 'highlight') {
     return `<div class="ev key" style="${placement}"${times}>${title}${speaker}</div>`
@@ -170,18 +176,18 @@ function renderHeader(schedule: Schedule, placed: Placed[]): string {
   </header>`
 }
 
-function renderLegend(schedule: Schedule, placed: Placed[]): string {
+function renderLegend(schedule: Schedule, labels: ResolvedLabels, placed: Placed[]): string {
   const chips = schedule.columns
     .filter((c) => c.type === 'track')
     .map(
       (c) =>
-        `<span class="chip" style="--c:${cssColor(c.color, FALLBACK_COLOR)}">${escapeHtml(legendLabel(c.name))}</span>`,
+        `<span class="chip" style="--c:${cssColor(c.color, FALLBACK_COLOR)}">${escapeHtml(legendLabel(c.name, labels.trackSuffix))}</span>`,
     )
-  if (placed.some((p) => p.spansAll)) chips.push('<span class="chip all">Everyone</span>')
+  if (placed.some((p) => p.spansAll)) chips.push(`<span class="chip all">${escapeHtml(labels.everyone)}</span>`)
   return `<div class="legend">${chips.join('')}</div>`
 }
 
-function renderAgendaGrid(schedule: Schedule, placed: Placed[]): string {
+function renderAgendaGrid(schedule: Schedule, labels: ResolvedLabels, placed: Placed[]): string {
   const { rows, columns } = schedule
   const lanes = columns.length
 
@@ -227,13 +233,13 @@ function renderAgendaGrid(schedule: Schedule, placed: Placed[]): string {
 
     for (const p of byRow.get(i) ?? []) {
       const span = (rowLine[p.lastRow] as number) - line + 1
-      out.push(renderItem(schedule, p, span > 1 ? `${line} / span ${span}` : `${line}`))
+      out.push(renderItem(schedule, labels, p, span > 1 ? `${line} / span ${span}` : `${line}`))
 
       // The item runs past its last row: mark the following rows it still occupies.
       const endMinutes = minutesOf(p.end)
       const lastRowEnd = minutesOf(rows[p.lastRow]?.end)
       if (endMinutes === null || lastRowEnd === null || endMinutes <= lastRowEnd) continue
-      const columnName = columns[p.firstCol]?.name ?? ''
+      const continuation = p.item.continuationLabel?.trim() || `${columns[p.firstCol]?.name ?? ''} session`
       const color = cssColor(columns[p.firstCol]?.color ?? '', FALLBACK_COLOR)
       for (let r = p.lastRow + 1; r < rows.length; r++) {
         const rowStart = minutesOf(rows[r]?.start)
@@ -242,7 +248,7 @@ function renderAgendaGrid(schedule: Schedule, placed: Placed[]): string {
         for (let c = p.firstCol; c <= p.lastCol; c++) if (occupied.has(`${r}:${c}`)) free = false
         if (!free) continue
         out.push(
-          `<div class="ev ghost" style="grid-row:${rowLine[r]};grid-column:${p.firstCol + 2} / ${p.lastCol + 3};--c:${color}"><span>${escapeHtml(columnName)} session continues until ${escapeHtml(p.end)}</span></div>`,
+          `<div class="ev ghost" style="grid-row:${rowLine[r]};grid-column:${p.firstCol + 2} / ${p.lastCol + 3};--c:${color}"><span>${escapeHtml(continuation)} ${escapeHtml(labels.continuesUntil)} ${escapeHtml(p.end)}</span></div>`,
         )
       }
     }
@@ -267,6 +273,7 @@ function renderSpeaker(speaker: Speaker): string {
 
 /** The `<main class="wrap">…</main>` markup for a schedule. */
 export function renderAgendaBody(schedule: Schedule): string {
+  const labels = resolveLabels(schedule.labels)
   const placed = placeItems(schedule)
   const note = schedule.event.notes.trim()
   const url = safeHttpUrl(schedule.event.url)
@@ -274,18 +281,18 @@ export function renderAgendaBody(schedule: Schedule): string {
   const parts = [renderHeader(schedule, placed)]
   if (note) parts.push(`<div class="parallel-note"><div>${renderInlineMarkup(schedule.event.notes)}</div></div>`)
   parts.push(`<section aria-labelledby="ag" class="sec">
-    <h2 id="ag">Agenda</h2>
-    ${renderLegend(schedule, placed)}
-    ${renderAgendaGrid(schedule, placed)}
+    <h2 id="ag">${escapeHtml(labels.agenda)}</h2>
+    ${renderLegend(schedule, labels, placed)}
+    ${renderAgendaGrid(schedule, labels, placed)}
   </section>`)
   if (schedule.speakers.length > 0) {
     parts.push(`<section aria-labelledby="sp" class="sec">
-    <h2 id="sp">Speakers</h2>
+    <h2 id="sp">${escapeHtml(labels.speakers)}</h2>
     <div class="people">${schedule.speakers.map(renderSpeaker).join('\n')}</div>
   </section>`)
   }
   if (url) {
-    parts.push(`<a class="btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Official event page</a>`)
+    parts.push(`<a class="btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(labels.eventLink)}</a>`)
   }
   return `<main class="wrap">\n${parts.join('\n')}\n</main>`
 }

@@ -341,9 +341,9 @@ export function addItem(schedule: Schedule, rowId: string, colId: string, partia
   return { ...schedule, items: [...schedule.items, item] }
 }
 
-export type ItemPatch = Partial<Pick<Item, 'title' | 'speaker' | 'tag' | 'variant'>>
+export type ItemPatch = Partial<Pick<Item, 'title' | 'speaker' | 'tag' | 'variant' | 'continuationLabel'>>
 
-/** Edit text fields and variant. An empty speaker/tag removes it. Structure has its own ops. */
+/** Edit text fields and variant. An empty speaker/tag/continuationLabel removes it. Structure has its own ops. */
 export function updateItem(schedule: Schedule, id: string, patch: ItemPatch): Schedule {
   const item = schedule.items.find((i) => i.id === id)
   if (!item) return schedule
@@ -353,6 +353,12 @@ export function updateItem(schedule: Schedule, id: string, patch: ItemPatch): Sc
   if (patch.variant !== undefined) next.variant = patch.variant
   if (patch.speaker !== undefined) next = patch.speaker === '' ? omitKey(next, 'speaker') : { ...next, speaker: patch.speaker }
   if (patch.tag !== undefined) next = patch.tag === '' ? omitKey(next, 'tag') : { ...next, tag: patch.tag }
+  if (patch.continuationLabel !== undefined) {
+    next =
+      patch.continuationLabel === ''
+        ? omitKey(next, 'continuationLabel')
+        : { ...next, continuationLabel: patch.continuationLabel }
+  }
   return replaceItem(schedule, next)
 }
 

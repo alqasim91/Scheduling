@@ -22,6 +22,7 @@ export function agendaCss(schedule: Schedule): string {
   --line:${cssColor(colors.line, '#c4c7c5')};
   --primary:${cssColor(colors.primary, '#0b57d0')};
   --accent:${cssColor(colors.accent, '#d93025')};
+  --note:${cssColor(colors.note ?? '', '#f9ab00')};
   --soft:color-mix(in srgb,var(--primary) 4%,color-mix(in srgb,var(--muted) 5%,var(--card)));
   --display:${cssFontFamily(fonts.display, 'sans-serif')};
   --body:${cssFontFamily(fonts.body, 'sans-serif')};
@@ -44,8 +45,8 @@ h2{font-family:var(--display);font-weight:500;font-size:22px;margin:0}
 .chip{--c:var(--muted);display:inline-flex;align-items:center;gap:6px;font-family:var(--display);font-weight:500;font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:3px 10px;border-radius:999px;background:color-mix(in srgb,var(--c) 12%,var(--card));color:var(--c)}
 .chip.all{background:var(--soft)}
 .chip::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
-.parallel-note{background:color-mix(in srgb,#f9ab00 12%,var(--card));border-radius:16px;padding:12px 16px;font-size:14px;display:flex;gap:12px;align-items:flex-start}
-.parallel-note::before{content:"";flex:none;width:4px;align-self:stretch;border-radius:2px;background:#f9ab00}
+.parallel-note{background:color-mix(in srgb,var(--note) 12%,var(--card));border-radius:16px;padding:12px 16px;font-size:14px;display:flex;gap:12px;align-items:flex-start}
+.parallel-note::before{content:"";flex:none;width:4px;align-self:stretch;border-radius:2px;background:var(--note)}
 .parallel-note div{white-space:pre-line}
 
 .agenda,.lane-head{display:grid;grid-template-columns:${template}}
@@ -55,7 +56,7 @@ h2{font-family:var(--display);font-weight:500;font-size:22px;margin:0}
 .ev{--c:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;min-width:0;display:flex;flex-direction:column;gap:8px}
 .ev h3{font-family:var(--display);font-weight:500;font-size:16px;line-height:1.3;margin:0;text-wrap:balance}
 .ev .spk{font-family:var(--display);font-weight:500;font-size:14px;color:var(--fg)}
-.ev .spk::before{content:"Speaker ";font-weight:400;color:var(--muted)}
+.ev .spk .lbl{font-weight:400;color:var(--muted)}
 .ev .when{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .ev.track{border-color:var(--c);border-width:1px 1px 1px 4px}
 .ev.shared{background:var(--soft);border-style:dashed}

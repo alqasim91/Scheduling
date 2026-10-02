@@ -11,15 +11,17 @@ beforeEach(() => {
 })
 
 describe('App', () => {
-  it('renders the toolbar and a default summary', () => {
+  it('renders the toolbar and the sample summary on first launch', () => {
     render(<App />)
     expect(screen.getByRole('button', { name: 'New' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open…' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save JSON' })).toBeInTheDocument()
     expect(screen.getByTestId('summary-mode')).toHaveTextContent('track-grid')
+    // First launch (no autosave) starts from the Cairo sample.
+    expect(screen.getByLabelText('Event title')).toHaveValue('Google for Developers Day: Cairo')
     expect(screen.getByTestId('summary-columns')).toHaveTextContent('2')
-    expect(screen.getByTestId('summary-rows')).toHaveTextContent('1')
-    expect(screen.getByTestId('summary-items')).toHaveTextContent('0')
+    expect(screen.getByTestId('summary-rows')).toHaveTextContent('9')
+    expect(screen.getByTestId('summary-items')).toHaveTextContent('12')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -60,6 +62,7 @@ describe('App', () => {
     await user.type(input, 'Throwaway')
     await user.click(screen.getByRole('button', { name: 'New' }))
     expect(input).toHaveValue('Untitled event')
+    expect(screen.getByTestId('summary-items')).toHaveTextContent('0')
   })
 
   it('Open with invalid JSON shows an alert and keeps state', async () => {

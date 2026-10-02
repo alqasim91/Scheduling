@@ -65,6 +65,8 @@ export const BrandingSchema = z.object({
     muted: HexColorSchema,
     line: HexColorSchema,
     accent: HexColorSchema,
+    /** Colour of the notes callout; defaults to #f9ab00 when omitted. */
+    note: HexColorSchema.optional(),
   }),
   /** CSS font-family strings. */
   fonts: z.object({
@@ -77,6 +79,17 @@ export const BrandingSchema = z.object({
     preset: z.enum(['none', 'fade', 'stagger']),
     logoAnimation: z.boolean(),
   }),
+})
+
+/** Wording for the fixed strings in the rendered page. Every field is optional; see `render/labels.ts`. */
+export const LabelsSchema = z.object({
+  agenda: z.string().optional(),
+  speakers: z.string().optional(),
+  everyone: z.string().optional(),
+  speakerPrefix: z.string().optional(),
+  trackSuffix: z.string().optional(),
+  continuesUntil: z.string().optional(),
+  eventLink: z.string().optional(),
 })
 
 export const ColumnSchema = z.object({
@@ -107,6 +120,8 @@ export const ItemSchema = z.object({
   title: z.string(),
   speaker: z.string().optional(),
   tag: z.string().optional(),
+  /** Ghost-cell text when the item runs past its row, e.g. "Intermediate GKE session". */
+  continuationLabel: z.string().optional(),
   variant: z.enum(['session', 'break', 'highlight']),
 })
 
@@ -125,6 +140,7 @@ export const ScheduleSchema = z
     version: z.literal(1),
     event: EventSchema,
     branding: BrandingSchema,
+    labels: LabelsSchema.optional(),
     mode: z.enum(['track-grid', 'table']),
     columns: z.array(ColumnSchema),
     rows: z.array(RowSchema),
@@ -196,5 +212,6 @@ export type Branding = z.infer<typeof BrandingSchema>
 export type Column = z.infer<typeof ColumnSchema>
 export type Row = z.infer<typeof RowSchema>
 export type Item = z.infer<typeof ItemSchema>
+export type Labels = z.infer<typeof LabelsSchema>
 export type Speaker = z.infer<typeof SpeakerSchema>
 export type Schedule = z.infer<typeof ScheduleSchema>

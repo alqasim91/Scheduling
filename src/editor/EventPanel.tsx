@@ -1,5 +1,6 @@
 import { DateSchema, TimezoneSchema } from '../model/schema.ts'
-import type { EventInfo, Schedule } from '../model/schema.ts'
+import type { EventInfo, Labels, Schedule } from '../model/schema.ts'
+import { DEFAULT_LABELS } from '../render/labels.ts'
 import { safeHttpUrl } from '../render/escape.ts'
 import { DraftInput } from './DraftInput.tsx'
 import type { Apply } from './types.ts'
@@ -8,6 +9,16 @@ interface Props {
   schedule: Schedule
   apply: Apply
 }
+
+const LABEL_FIELDS: ReadonlyArray<readonly [keyof Labels, string]> = [
+  ['agenda', 'Agenda heading'],
+  ['speakers', 'Speakers heading'],
+  ['everyone', 'Everyone label'],
+  ['speakerPrefix', 'Speaker prefix'],
+  ['trackSuffix', 'Track suffix'],
+  ['continuesUntil', 'Continues-until text'],
+  ['eventLink', 'Event link text'],
+]
 
 export function EventPanel({ schedule, apply }: Props) {
   const { event } = schedule
@@ -22,6 +33,16 @@ export function EventPanel({ schedule, apply }: Props) {
       if (value === '') delete next[key]
       else next[key] = value
       return { ...s, event: next }
+    })
+  }
+
+  /** Labels are optional text overrides; emptied fields are removed so the default applies. */
+  function setLabel(key: keyof Labels, value: string) {
+    apply((s) => {
+      const next = { ...s.labels }
+      if (value === '') delete next[key]
+      else next[key] = value
+      return { ...s, labels: Object.keys(next).length > 0 ? next : undefined }
     })
   }
 
@@ -55,9 +76,9 @@ export function EventPanel({ schedule, apply }: Props) {
         <DraftInput
           label="Timezone"
           value={event.timezone}
-          placeholder="Africa/Cairo"
+          placeholder="Europe/London"
           validate={(text) => TimezoneSchema.safeParse(text).success}
-          hint="Use an IANA timezone such as Africa/Cairo."
+          hint="Use an IANA timezone such as Europe/London."
           onCommit={(timezone) => set({ timezone })}
         />
       </div>
@@ -81,6 +102,21 @@ export function EventPanel({ schedule, apply }: Props) {
           <small className="field__error">Only http: and https: links are shown on the page.</small>
         )}
       </label>
+      <details className="labels">
+        <summary>Labels</summary>
+        <p className="labels__hint">Wording of the fixed text on the page. Leave a field empty to use the default.</p>
+        {LABEL_FIELDS.map(([key, text]) => (
+          <label className="field" key={key}>
+            <span>{text}</span>
+            <input
+              type="text"
+              value={schedule.labels?.[key] ?? ''}
+              placeholder={DEFAULT_LABELS[key]}
+              onChange={(e) => setLabel(key, e.target.value)}
+            />
+          </label>
+        ))}
+      </details>
     </section>
   )
 }

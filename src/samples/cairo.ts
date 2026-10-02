@@ -120,6 +120,7 @@ export const cairoSample: Schedule = {
       title: 'Scale Distributed Data Processing with GKE to build a Knowledge Graph in BigQuery',
       speaker: 'Ibtissem Hattab',
       end: '17:20',
+      continuationLabel: 'Intermediate GKE session',
       variant: 'session',
     },
     {
