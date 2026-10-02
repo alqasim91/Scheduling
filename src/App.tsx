@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Editor } from './editor/Editor.tsx'
 import type { Schedule } from './model/schema.ts'
 import { buildExportHtml } from './export/exportHtml.ts'
@@ -7,7 +7,7 @@ import { printHtml } from './export/printHtml.ts'
 import { downloadText, htmlFilename, readFileAsText, scheduleFilename } from './persistence/files.ts'
 import { importFileText } from './persistence/importFile.ts'
 import { serializeSchedule } from './persistence/json.ts'
-import { STORAGE_KEY, loadAutosaved, useAutosave } from './persistence/useAutosave.ts'
+import { STORAGE_KEY, readAutosaved, useAutosave } from './persistence/useAutosave.ts'
 import { cairoSample } from './samples/cairo.ts'
 import { sniffTemplateText } from './templates/file.ts'
 import { Gallery } from './templates/Gallery.tsx'
@@ -20,16 +20,33 @@ import { createEmptySchedule } from './model/defaults.ts'
 const MAX_SHOWN_ERRORS = 20
 
 export default function App() {
-  const [schedule, setSchedule] = useState<Schedule>(() => loadAutosaved(STORAGE_KEY) ?? structuredClone(cairoSample))
+  // Read once: the schedule to start from, and what migrating an older autosave had to adjust.
+  const [initial] = useState(() => {
+    const saved = readAutosaved(STORAGE_KEY)
+    return { schedule: saved?.schedule ?? structuredClone(cairoSample), warnings: saved?.warnings ?? [] }
+  })
+  const [schedule, setSchedule] = useState<Schedule>(initial.schedule)
   const [errors, setErrors] = useState<string[]>([])
+  /** Notes from migrating an opened file; shown once until dismissed. */
+  const [warnings, setWarnings] = useState<string[]>(initial.warnings)
   const [embed, setEmbed] = useState(true)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [dialog, setDialog] = useState<'gallery' | 'save' | null>(null)
-  const [pendingTemplate, setPendingTemplate] = useState<TemplateContent | null>(null)
+  const [pendingTemplate, setPendingTemplate] = useState<(TemplateContent & { warnings: string[] }) | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   useAutosave(STORAGE_KEY, schedule)
+
+  // An older autosave was upgraded on load: store the upgraded copy now, so its notes appear only once.
+  useEffect(() => {
+    if (initial.warnings.length === 0) return
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(initial.schedule))
+    } catch {
+      // Best effort, like the rest of autosave.
+    }
+  }, [initial])
 
   /** Replace the schedule with one from the gallery, confirming first if there is something to lose. */
   function handleChoose(next: Schedule) {
@@ -42,6 +59,7 @@ export default function App() {
     }
     setSchedule(next)
     setErrors([])
+    setWarnings([])
     setDialog(null)
   }
 
@@ -55,7 +73,7 @@ export default function App() {
       if (template) {
         // A template file: let the person choose between adding it and opening it.
         if (template.ok) {
-          setPendingTemplate(template.value)
+          setPendingTemplate({ ...template.value, warnings: template.warnings })
           setErrors([])
         } else {
           setErrors(template.errors)
@@ -66,6 +84,7 @@ export default function App() {
       if (result.ok) {
         setSchedule(result.value)
         setErrors([])
+        setWarnings(result.warnings)
       } else {
         setErrors(result.errors)
       }
@@ -114,6 +133,7 @@ export default function App() {
   function handleLoadSample() {
     setSchedule(structuredClone(cairoSample))
     setErrors([])
+    setWarnings([])
   }
 
   const hiddenErrors = errors.length - MAX_SHOWN_ERRORS
@@ -167,6 +187,23 @@ export default function App() {
         </p>
       )}
 
+      {warnings.length > 0 && (
+        <div role="status" className="notice notice--warnings" aria-label="Changes made while opening the file">
+          <div>
+            <strong>Opened with {warnings.length === 1 ? 'one adjustment' : `${warnings.length} adjustments`}.</strong>
+            <ul>
+              {warnings.slice(0, MAX_SHOWN_ERRORS).map((message, i) => (
+                <li key={i}>{message}</li>
+              ))}
+            </ul>
+            {warnings.length > MAX_SHOWN_ERRORS && <p>…and {warnings.length - MAX_SHOWN_ERRORS} more.</p>}
+          </div>
+          <button type="button" onClick={() => setWarnings([])}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {errors.length > 0 && (
         <div role="alert" className="alert">
           <strong>Could not open that file.</strong>
@@ -202,6 +239,7 @@ export default function App() {
           }}
           onOpenAsSchedule={() => {
             setSchedule(instantiate({ schedule: pendingTemplate.schedule }))
+            setWarnings(pendingTemplate.warnings)
             setPendingTemplate(null)
           }}
         />

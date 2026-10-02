@@ -4,16 +4,24 @@ import { parseSchedule } from '../model/validate.ts'
 
 export const STORAGE_KEY = 'schedule-builder:v1'
 
-/** Read and validate an autosaved schedule. Returns null if missing, invalid, or storage throws. */
-export function loadAutosaved(key: string): Schedule | null {
+/**
+ * Read and validate an autosaved schedule, with the notes a migration left (an older autosave is
+ * upgraded on the way in). Returns null if missing, invalid, or storage throws.
+ */
+export function readAutosaved(key: string): { schedule: Schedule; warnings: string[] } | null {
   try {
     const text = window.localStorage.getItem(key)
     if (text === null) return null
     const result = parseSchedule(JSON.parse(text))
-    return result.ok ? result.value : null
+    return result.ok ? { schedule: result.value, warnings: result.warnings } : null
   } catch {
     return null
   }
+}
+
+/** Like `readAutosaved`, for callers that only need the schedule. */
+export function loadAutosaved(key: string): Schedule | null {
+  return readAutosaved(key)?.schedule ?? null
 }
 
 /**

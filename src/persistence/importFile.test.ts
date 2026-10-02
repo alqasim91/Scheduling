@@ -6,6 +6,7 @@ import { tableDemo } from '../render/__fixtures__/tableDemo.ts'
 import { tableDemoRtl } from '../render/__fixtures__/tableDemoRtl.ts'
 import { renderDocument } from '../render/renderAgenda.ts'
 import { cairoSample } from '../samples/cairo.ts'
+import cairoV1Export from '../model/__fixtures__/cairoV1Export.html?raw'
 import { NOT_EXPORTED_ERROR, importFileText } from './importFile.ts'
 import { serializeSchedule } from './json.ts'
 
@@ -22,7 +23,7 @@ describe('importFileText', () => {
     const mixed = {
       ...tableDemo,
       columns: [...tableDemo.columns, { id: 'lane', name: 'Lane', color: '#0b57d0', type: 'track' as const }],
-      items: [{ id: 'it', rowId: 'r1', columnIds: ['lane'], title: 'Kept for grid mode', variant: 'session' as const }],
+      items: [{ id: 'it', columnIds: ['lane'], start: '09:00', end: '09:30', title: 'Kept for grid mode', variant: 'session' as const }],
       rows: tableDemo.rows.map((r, i) => (i === 0 ? { ...r, cells: { ...r.cells, 'c-room': '</script><script>alert(1)</script>\u2028' } } : r)),
     }
     const result = importFileText(buildExportHtml(mixed))
@@ -34,6 +35,16 @@ describe('importFileText', () => {
     const html = buildExportHtml(hostile, { fontCss: "@font-face{font-family:'X';src:url(data:font/woff2;base64,AA==)}" })
     const result = importFileText(html)
     expect(result.ok && result.value).toEqual(hostile)
+  })
+
+  it('opens a page exported before the time-based model (version 1) and reports what it had to adjust', () => {
+    const result = importFileText(cairoV1Export)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.version).toBe(2)
+    expect(result.value.items.map((i) => i.id)).toEqual(cairoSample.items.map((i) => i.id))
+    expect(result.value.items.find((i) => i.id === 'item-b1')).toMatchObject({ start: '14:20', end: '15:05' })
+    expect(result.warnings).toEqual([expect.stringContaining('"Opening & Keynote" was shortened to end at 14:20')])
   })
 
   it('still reads plain JSON', () => {

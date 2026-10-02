@@ -17,10 +17,8 @@ export function RowHead({ schedule, row, index, apply }: Props) {
   const n = index + 1
 
   function handleRemove() {
-    const used =
-      schedule.items.filter((i) => i.rowId === row.id).length +
-      Object.values(row.cells ?? {}).filter((v) => v !== '').length
-    if (used > 0 && !window.confirm(`Remove row ${n}? Its items and table cells will be deleted.`)) return
+    const used = Object.values(row.cells ?? {}).filter((v) => v !== '').length
+    if (used > 0 && !window.confirm(`Remove row ${n}? Its table cells will be deleted.`)) return
     apply((s) => removeRow(s, row.id))
   }
 

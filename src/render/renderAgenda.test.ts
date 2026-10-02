@@ -5,6 +5,7 @@ import { agendaCss } from './agendaCss.ts'
 import { escapeHtml, cssFontFamily } from './escape.ts'
 import { DEFAULT_LABELS, resolveLabels } from './labels.ts'
 import { initials, renderAgendaBody, renderDocument } from './renderAgenda.ts'
+import cairoV1Render from './__fixtures__/cairoV1Render.html?raw'
 
 function withEvent(patch: Partial<Schedule['event']>): Schedule {
   return { ...cairoSample, event: { ...cairoSample.event, ...patch } }
@@ -198,7 +199,7 @@ describe('Cairo sample agenda', () => {
     expect([...laneHead.querySelectorAll('div')].map((d) => d.textContent)).toEqual(['Beginner', 'Intermediate'])
   })
 
-  it('renders the keynote row note as a .small paragraph spanning columns 2..end', () => {
+  it('renders the keynote note as a .small paragraph spanning columns 2..end', () => {
     const note = doc.querySelector('p.small') as Element
     expect(note.textContent).toMatch(/^The page also lists a 5 minute room change/)
     expect(gridStyle(note, 'grid-column')).toBe('2 / 4')
@@ -206,11 +207,11 @@ describe('Cairo sample agenda', () => {
     expect(Number(gridStyle(note, 'grid-row'))).toBe(Number(keynoteRow) + 1)
   })
 
-  it('gives every row a time cell with start and end', () => {
+  it('gives every slot a time cell with start and end (the keynote slot ends where the first sessions start)', () => {
     const cells = [...doc.querySelectorAll('.t')].map((t) => t.textContent)
     expect(cells).toEqual([
       '13:3014:00',
-      '14:0014:30',
+      '14:0014:20',
       '14:2015:05',
       '15:0515:35',
       '15:3516:20',
@@ -265,14 +266,12 @@ describe('layout edge cases', () => {
     expect(html).toContain('Beyond the Prompt')
   })
 
-  it('converts rowSpan to a grid-row span, counting any note rows in between', () => {
-    const s: Schedule = {
-      ...cairoSample,
-      items: cairoSample.items.map((i) => (i.id === 'item-b1' ? { ...i, rowSpan: 2 } : i)),
-    }
-    const doc = parse(renderAgendaBody(s))
+  it('has no row model: an item is always one grid row, whatever stale row data is around', () => {
+    const noisy: Schedule = { ...cairoSample, rows: [{ id: 'x', start: '01:00', end: '02:00', note: 'Never shown' }] }
+    expect(renderDocument(noisy)).toBe(renderDocument(cairoSample))
+    const doc = parse(renderAgendaBody(cairoSample))
     const el = [...doc.querySelectorAll('.ev.track')].find((e) => e.textContent?.includes('Beyond')) as Element
-    expect(gridStyle(el, 'grid-row')).toMatch(/^\d+ \/ span 2$/)
+    expect(gridStyle(el, 'grid-row')).toMatch(/^\d+$/)
   })
 
   it('renders no lane head when every item spans all columns', () => {
@@ -316,7 +315,7 @@ describe('continuation labels', () => {
 
 describe('labels and branding without any event-specific text', () => {
   const custom: Schedule = {
-    version: 1,
+    version: 2,
     event: {
       title: 'Harbour Product Summit',
       date: '2027-03-09',
@@ -358,15 +357,12 @@ describe('labels and branding without any event-specific text', () => {
       { id: 'c2', name: 'Data', color: '#00897b', type: 'track' },
       { id: 'c3', name: 'Ops', color: '#e65100', type: 'track' },
     ],
-    rows: [
-      { id: 'r1', start: '09:00', end: '09:30' },
-      { id: 'r2', start: '09:30', end: '10:15' },
-      { id: 'r3', start: '10:15', end: '10:45' },
-    ],
+    rows: [],
     items: [
-      { id: 'i1', rowId: 'r1', columnIds: ['c1', 'c2', 'c3'], title: 'Welcome', variant: 'break' },
-      { id: 'i2', rowId: 'r2', columnIds: ['c1'], title: 'Design systems', speaker: 'Sam Lee', end: '10:30', variant: 'session' },
-      { id: 'i3', rowId: 'r2', columnIds: ['c2'], title: 'Pipelines', variant: 'session' },
+      { id: 'i1', columnIds: ['c1', 'c2', 'c3'], start: '09:00', end: '09:30', title: 'Welcome', variant: 'break' },
+      { id: 'i2', columnIds: ['c1'], start: '09:30', end: '10:30', title: 'Design systems', speaker: 'Sam Lee', variant: 'session' },
+      { id: 'i3', columnIds: ['c2'], start: '09:30', end: '10:15', title: 'Pipelines', variant: 'session' },
+      { id: 'i4', columnIds: ['c2'], start: '10:15', end: '10:45', title: 'Observability', variant: 'session' },
     ],
     speakers: [],
   }
@@ -411,5 +407,96 @@ describe('labels and branding without any event-specific text', () => {
       '--note:#f9ab00;',
     )
     expect(resolveLabels({ agenda: '   ', eventLink: 'RSVP' })).toEqual({ ...DEFAULT_LABELS, eventLink: 'RSVP' })
+  })
+})
+
+describe('slots derived from items', () => {
+  const base = (items: Schedule['items']): Schedule => ({ ...cairoSample, rows: [], items })
+  const item = (id: string, start: string, end: string, columnIds: string[], more: object = {}): Schedule['items'][number] => ({
+    id,
+    columnIds,
+    start,
+    end,
+    title: id,
+    variant: 'session',
+    ...more,
+  })
+  const slotLabels = (s: Schedule) => [...parse(renderAgendaBody(s)).querySelectorAll('.t')].map((e) => e.textContent)
+
+  it('renders pixel-for-pixel the same markup as the row-based renderer did for the Cairo page', () => {
+    // The keynote kept its original 14:30 end (it overlapped the 14:20 sessions, which the v2 schema now forbids,
+    // so the sample stores 14:20); the renderer itself does not validate and must reproduce the old page exactly.
+    const original: Schedule = {
+      ...cairoSample,
+      items: cairoSample.items.map((i) =>
+        i.id === 'item-keynote'
+          ? {
+              ...i,
+              end: '14:30',
+              note: "The page also lists a 5 minute room change at 14:15 – 14:20, and the first sessions start at 14:20, before the keynote's 14:30 end.",
+            }
+          : i,
+      ),
+    }
+    expect(renderDocument(original)).toBe(cairoV1Render)
+  })
+
+  it('has one slot per distinct start, sorted, however the items are ordered', () => {
+    const s = base([item('c', '11:00', '11:30', ['col-beginner']), item('a', '09:00', '09:30', ['col-beginner']), item('b', '09:00', '09:45', ['col-intermediate'])])
+    expect(slotLabels(s)).toEqual(['09:0009:30', '11:0011:30'])
+  })
+
+  it('ends a slot at the earliest end of the items that start there, and ghosts the longer one', () => {
+    const s = base([
+      item('long', '09:00', '10:00', ['col-beginner']),
+      item('short', '09:00', '09:30', ['col-intermediate']),
+      item('later', '09:30', '10:00', ['col-intermediate']),
+    ])
+    expect(slotLabels(s)).toEqual(['09:0009:30', '09:3010:00'])
+    const doc = parse(renderAgendaBody(s))
+    const ghosts = [...doc.querySelectorAll('.ev.ghost')]
+    expect(ghosts).toHaveLength(1)
+    expect(ghosts[0]?.textContent).toBe('Beginner session continues until 10:00')
+    expect(gridStyle(ghosts[0] as Element, 'grid-column')).toBe('2 / 3')
+  })
+
+  it('draws no ghost where the covered cell is taken by a session that starts there', () => {
+    const s = base([
+      item('long', '09:00', '10:00', ['col-beginner']),
+      item('short', '09:00', '09:30', ['col-intermediate']),
+      item('clash-free', '09:30', '10:00', ['col-beginner']),
+    ])
+    expect(parse(renderAgendaBody(s)).querySelectorAll('.ev.ghost')).toHaveLength(0)
+  })
+
+  it('shows an item note after its slot, one line per noted item in column order, with inline markup', () => {
+    const s = base([
+      item('b', '09:00', '09:30', ['col-intermediate'], { note: 'Second **lane**' }),
+      item('a', '09:00', '09:30', ['col-beginner'], { note: 'First' }),
+      item('plain', '09:30', '10:00', ['col-beginner']),
+    ])
+    const doc = parse(renderAgendaBody(s))
+    const notes = [...doc.querySelectorAll('p.small')]
+    expect(notes.map((n) => n.innerHTML)).toEqual(['First', 'Second <b>lane</b>'])
+    const rows = notes.map((n) => Number(gridStyle(n, 'grid-row')))
+    const next = Number(gridStyle([...doc.querySelectorAll('.t')][1] as Element, 'grid-row'))
+    expect(rows[1]).toBe(rows[0]! + 1)
+    expect(next).toBe(rows[1]! + 1)
+    expect(gridStyle(notes[0] as Element, 'grid-column')).toBe('2 / 4')
+  })
+
+  it('ignores blank notes', () => {
+    const s = base([item('a', '09:00', '09:30', ['col-beginner'], { note: '   ' })])
+    expect(renderAgendaBody(s)).not.toContain('class="small"')
+  })
+
+  it('shows the whole run in the header, from the first start to the latest end', () => {
+    const s = base([item('a', '09:00', '09:30', ['col-beginner']), item('b', '09:10', '12:20', ['col-intermediate'])])
+    expect(parse(renderAgendaBody(s)).querySelector('.rng')?.textContent).toBe('09:00 – 12:20')
+  })
+
+  it('table mode still takes its times from the rows', () => {
+    const doc = parse(renderAgendaBody({ ...cairoSample, mode: 'table', rows: [{ id: 'r', start: '08:00', end: '08:30' }] }))
+    expect(doc.querySelector('.rng')?.textContent).toBe('08:00 – 08:30')
   })
 })

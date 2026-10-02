@@ -2,7 +2,7 @@ import type { Schedule } from '../../model/schema.ts'
 
 /** The table-mode idea in Arabic (ar-EG): right-to-left table, Arabic labels and digits. No real organisations. */
 export const tableDemoRtl: Schedule = {
-  version: 1,
+  version: 2,
   event: {
     title: 'اجتماع فريق المنتج السنوي',
     titleHighlight: 'فريق المنتج',

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptySchedule } from '../model/defaults.ts'
 import type { Schedule } from '../model/schema.ts'
+import { fromMinutes } from '../model/time.ts'
 import { WebFontSchema } from '../model/schema.ts'
 import { parseSchedule } from '../model/validate.ts'
 import { cairoSample } from '../samples/cairo.ts'
@@ -98,11 +99,17 @@ describe('motion css', () => {
       [...renderDocument(s).matchAll(/class="ev [^"]*" style="[^"]*--i:(\d+)/g)].map((m) => Number(m[1]))
     // The sample has 12 items and 1 ghost cell.
     expect(indices(withMotion('stagger'))).toEqual(Array.from({ length: 13 }, (_, i) => i))
-    const rows = Array.from({ length: 25 }, (_, i) => ({ id: `r${i}`, start: '09:00', end: '09:30' }))
     const many: Schedule = {
       ...withMotion('stagger'),
-      rows,
-      items: rows.map((r) => ({ id: `i${r.id}`, rowId: r.id, columnIds: ['col-beginner', 'col-intermediate'], title: 'x', variant: 'break' as const })),
+      rows: [],
+      items: Array.from({ length: 25 }, (_, i) => ({
+        id: `i${i}`,
+        columnIds: ['col-beginner', 'col-intermediate'],
+        start: fromMinutes(9 * 60 + 5 * i),
+        end: fromMinutes(9 * 60 + 5 * i + 5),
+        title: 'x',
+        variant: 'break' as const,
+      })),
     }
     const capped = indices(many)
     expect(capped).toHaveLength(25)

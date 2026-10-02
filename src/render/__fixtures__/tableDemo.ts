@@ -2,7 +2,7 @@ import type { Schedule } from '../../model/schema.ts'
 
 /** A generic table-mode event: one flat table, a person column that matches speakers, tags, a time column. */
 export const tableDemo: Schedule = {
-  version: 1,
+  version: 2,
   event: {
     title: 'Product Team Offsite',
     titleHighlight: 'Offsite',

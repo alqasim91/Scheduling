@@ -142,20 +142,23 @@ export const RowSchema = z.object({
   cells: z.record(z.string(), z.string()).optional(),
 })
 
+/**
+ * A session on the track grid. Items are placed by absolute time (`start` < `end`, half-open) and
+ * by the track columns they span; rows are not involved (they belong to table mode).
+ */
 export const ItemSchema = z.object({
   id: IdSchema,
-  rowId: IdSchema,
   /** Columns the item spans (at least one; intended to be contiguous). */
   columnIds: z.array(IdSchema).min(1, 'An item needs at least one column'),
-  rowSpan: z.number().int().min(1).optional(),
-  /** Override the row's times, e.g. a session that runs past its row. */
-  start: TimeSchema.optional(),
-  end: TimeSchema.optional(),
+  start: TimeSchema,
+  end: TimeSchema,
   title: z.string(),
   speaker: z.string().optional(),
   tag: z.string().optional(),
-  /** Ghost-cell text when the item runs past its row, e.g. "Intermediate GKE session". */
+  /** Ghost-cell text when the item runs past the end of its slot, e.g. "Intermediate GKE session". */
   continuationLabel: z.string().optional(),
+  /** Small note line shown after the item's slot (inline markup allowed). */
+  note: z.string().optional(),
   variant: z.enum(['session', 'break', 'highlight']),
 })
 
@@ -171,7 +174,7 @@ export const SpeakerSchema = z.object({
 
 export const ScheduleSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     event: EventSchema,
     branding: BrandingSchema,
     labels: LabelsSchema.optional(),
@@ -215,40 +218,53 @@ export const ScheduleSchema = z
       }
     })
 
-    const rowIndexById = new Map<string, number>()
-    schedule.rows.forEach((row, i) => {
-      if (!rowIndexById.has(row.id)) rowIndexById.set(row.id, i)
-    })
     const columnIds = new Set(schedule.columns.map((c) => c.id))
 
     schedule.items.forEach((item, i) => {
       if (
-        item.start !== undefined &&
-        item.end !== undefined &&
         TIME_PATTERN.test(item.start) &&
         TIME_PATTERN.test(item.end) &&
         toMinutes(item.start) >= toMinutes(item.end)
       ) {
         fail(['items', i, 'end'], `Item end (${item.end}) must be after its start (${item.start})`)
       }
-
-      const rowIndex = rowIndexById.get(item.rowId)
-      if (rowIndex === undefined) {
-        fail(['items', i, 'rowId'], `Unknown row "${item.rowId}"`)
-      } else if (item.rowSpan !== undefined) {
-        const remaining = schedule.rows.length - rowIndex
-        if (item.rowSpan > remaining) {
-          fail(
-            ['items', i, 'rowSpan'],
-            `rowSpan ${item.rowSpan} exceeds the ${remaining} row(s) remaining from row "${item.rowId}"`,
-          )
-        }
-      }
-
       item.columnIds.forEach((columnId, j) => {
         if (!columnIds.has(columnId)) fail(['items', i, 'columnIds', j], `Unknown column "${columnId}"`)
       })
     })
+
+    // Two items sharing a column must not overlap in time (half-open intervals: touching is fine).
+    const byColumn = new Map<string, { index: number; start: number; end: number }[]>()
+    schedule.items.forEach((item, index) => {
+      if (!TIME_PATTERN.test(item.start) || !TIME_PATTERN.test(item.end)) return
+      const start = toMinutes(item.start)
+      const end = toMinutes(item.end)
+      if (start >= end) return
+      for (const columnId of new Set(item.columnIds)) {
+        byColumn.set(columnId, [...(byColumn.get(columnId) ?? []), { index, start, end }])
+      }
+    })
+    const reported = new Set<string>()
+    for (const [columnId, spans] of byColumn) {
+      const sorted = [...spans].sort((x, y) => x.start - y.start || x.index - y.index)
+      let latest = sorted[0]
+      for (const span of sorted.slice(1)) {
+        if (latest && span.start < latest.end) {
+          const [first, second] = latest.index < span.index ? [latest, span] : [span, latest]
+          const key = `${first.index}:${second.index}`
+          if (!reported.has(key)) {
+            reported.add(key)
+            const a = schedule.items[first.index]
+            const b = schedule.items[second.index]
+            fail(
+              ['items', second.index, 'start'],
+              `Item "${b?.id}" (${b?.start}–${b?.end}) overlaps "${a?.id}" (${a?.start}–${a?.end}) in column "${columnId}"`,
+            )
+          }
+        }
+        if (!latest || span.end > latest.end) latest = span
+      }
+    }
   })
 
 /* ---------- types ---------- */

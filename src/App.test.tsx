@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import App from './App.tsx'
+import cairoV1 from './model/__fixtures__/cairoV1.json'
 import { createEmptySchedule } from './model/defaults.ts'
 import { serializeSchedule } from './persistence/json.ts'
 import { STORAGE_KEY } from './persistence/useAutosave.ts'
@@ -21,7 +22,7 @@ describe('App', () => {
     // First launch (no autosave) starts from the Cairo sample.
     expect(screen.getByLabelText('Event title')).toHaveValue('Google for Developers Day: Cairo')
     expect(screen.getByTestId('summary-columns')).toHaveTextContent('2')
-    expect(screen.getByTestId('summary-rows')).toHaveTextContent('9')
+    expect(screen.getByTestId('summary-rows')).toHaveTextContent('0')
     expect(screen.getByTestId('summary-items')).toHaveTextContent('12')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
@@ -106,5 +107,48 @@ describe('App', () => {
     )
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
     expect(screen.getByLabelText('Event title')).toHaveValue('From file')
+  })
+
+  describe('files from before the time-based model', () => {
+    const v1 = () => structuredClone(cairoV1) as Record<string, unknown>
+    const warning = /“?"?Opening & Keynote"? was shortened to end at 14:20/
+
+    it('Open upgrades a version 1 file and says what it adjusted, until dismissed', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      await user.upload(
+        screen.getByTestId('open-file'),
+        new File([JSON.stringify(v1())], 'cairo-v1.json', { type: 'application/json' }),
+      )
+      const note = await screen.findByRole('status', { name: 'Changes made while opening the file' })
+      expect(note).toHaveTextContent('Opened with one adjustment.')
+      expect(note).toHaveTextContent(warning)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByTestId('summary-items')).toHaveTextContent('12')
+      await user.click(within(note).getByRole('button', { name: 'Dismiss' }))
+      expect(screen.queryByRole('status', { name: 'Changes made while opening the file' })).not.toBeInTheDocument()
+    })
+
+    it('a file that needs no adjustments shows no note', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      await user.upload(
+        screen.getByTestId('open-file'),
+        new File([serializeSchedule(createEmptySchedule())], 'new.json', { type: 'application/json' }),
+      )
+      await waitFor(() => expect(screen.getByLabelText('Event title')).toHaveValue('Untitled event'))
+      expect(screen.queryByRole('status', { name: 'Changes made while opening the file' })).not.toBeInTheDocument()
+    })
+
+    it('an older autosave is upgraded on load, noted once and stored in the new form', async () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(v1()))
+      const first = render(<App />)
+      expect(await screen.findByRole('status', { name: 'Changes made while opening the file' })).toHaveTextContent(warning)
+      await waitFor(() => expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}').version).toBe(2))
+      first.unmount()
+      render(<App />)
+      expect(screen.queryByRole('status', { name: 'Changes made while opening the file' })).not.toBeInTheDocument()
+      expect(screen.getByTestId('summary-items')).toHaveTextContent('12')
+    })
   })
 })

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import v1Schedules from '../model/__fixtures__/v1Schedules.json'
 import { parseSchedule } from '../model/validate.ts'
 import { renderDocument } from '../render/renderAgenda.ts'
 import { tableDemo } from '../render/__fixtures__/tableDemo.ts'
@@ -65,7 +66,9 @@ describe('built-in templates', () => {
       it('is a valid schedule that renders', () => {
         expectValid(template.schedule)
         expect(renderDocument(template.schedule)).toContain('<main class="wrap">')
-        expect(template.schedule.rows.length).toBeGreaterThanOrEqual(6)
+        // Grid templates are made of sessions (rows are for table mode); tables are made of rows.
+        const parts = template.schedule.mode === 'table' ? template.schedule.rows : template.schedule.items
+        expect(parts.length).toBeGreaterThanOrEqual(6)
       })
 
       it('is generic: placeholder text only, no real organisations or people', () => {
@@ -115,15 +118,15 @@ describe('instantiate', () => {
       // Same content, only ids and the date differ.
       expect(canonical(copy)).toEqual(canonical(template.schedule))
       // The source is untouched.
-      expect(template.schedule.rows[0]?.id).toMatch(/^(r1|row)/)
+      expect(template.schedule.columns[0]?.id).not.toMatch(/^col_/)
     })
   }
 
-  it('remaps item rows and columns and table cell keys', () => {
+  it('remaps item columns and table cell keys', () => {
     const grid = instantiate(BUILTIN_TEMPLATES[0] as (typeof BUILTIN_TEMPLATES)[number], NOW)
-    const rowIds = new Set(grid.rows.map((r) => r.id))
     const colIds = new Set(grid.columns.map((c) => c.id))
-    expect(grid.items.every((i) => rowIds.has(i.rowId) && i.columnIds.every((c) => colIds.has(c)))).toBe(true)
+    expect(grid.items.every((i) => i.columnIds.every((c) => colIds.has(c)))).toBe(true)
+    expect(grid.items.map((i) => [i.start, i.end])).toEqual((BUILTIN_TEMPLATES[0] as (typeof BUILTIN_TEMPLATES)[number]).schedule.items.map((i) => [i.start, i.end]))
 
     const table = instantiate(BUILTIN_TEMPLATES[2] as (typeof BUILTIN_TEMPLATES)[number], NOW)
     const tableCols = new Set(table.columns.map((c) => c.id))
@@ -179,8 +182,8 @@ describe('stripContent', () => {
       expect(out.mode).toBe(s.mode)
       expect(out.columns).toEqual(s.columns)
       expect(out.rows.map((r) => [r.id, r.start, r.end, r.note])).toEqual(s.rows.map((r) => [r.id, r.start, r.end, r.note]))
-      expect(out.items.map((i) => [i.id, i.rowId, i.columnIds, i.rowSpan, i.variant, i.start, i.end])).toEqual(
-        s.items.map((i) => [i.id, i.rowId, i.columnIds, i.rowSpan, i.variant, i.start, i.end]),
+      expect(out.items.map((i) => [i.id, i.columnIds, i.variant, i.start, i.end, i.note, i.continuationLabel])).toEqual(
+        s.items.map((i) => [i.id, i.columnIds, i.variant, i.start, i.end, i.note, i.continuationLabel]),
       )
     })
   }
@@ -216,6 +219,19 @@ describe('template files', () => {
         expect(result.ok && result.value.schedule).toEqual(schedule)
       }
     }
+  })
+
+  it('opens template files and saved templates written before the time-based model (version 1 schedules)', () => {
+    const v1 = (v1Schedules as Record<string, unknown>)['tpl-conference-two-tracks']
+    const file = parseTemplateValue({ kind: TEMPLATE_KIND, version: 1, template: { name: 'Old', description: '', schedule: v1 } })
+    expect(file.ok).toBe(true)
+    if (file.ok) {
+      expect(file.value.schedule.version).toBe(2)
+      expect(file.value.schedule.items).toEqual(BUILTIN_TEMPLATES[0]!.schedule.items)
+      expect(file.warnings).toEqual([])
+    }
+    localStorage.setItem(TEMPLATES_KEY, JSON.stringify([{ id: 'tpl_old', name: 'Old saved', description: '', schedule: v1 }]))
+    expect(listUserTemplates().map((t) => [t.name, t.schedule.version])).toEqual([['Old saved', 2]])
   })
 
   it('sniffs by content: schedules and junk are not template files', () => {

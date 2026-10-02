@@ -213,7 +213,7 @@ describe('My templates', () => {
     expect(stored.schedule.items).toHaveLength(12)
     expect(stored.schedule.items.every((i) => i.title === '')).toBe(true)
     expect(stored.schedule.columns.map((c) => c.name)).toEqual(['Beginner', 'Intermediate'])
-    expect(stored.schedule.rows).toHaveLength(9)
+    expect(stored.schedule.rows).toHaveLength(0)
 
     await user.click(screen.getByRole('button', { name: 'New…' }))
     vi.spyOn(window, 'confirm').mockReturnValue(true)

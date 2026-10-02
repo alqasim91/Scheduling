@@ -10,17 +10,18 @@ describe('schedule JSON', () => {
     s.event.titleHighlight = 'Cairo'
     s.items.push({
       id: 'item_1',
-      rowId: s.rows[0]!.id,
       columnIds: [s.columns[0]!.id],
+      start: '09:00',
+      end: '09:45',
       title: 'Opening',
       variant: 'highlight',
     })
     const result = parseScheduleJson(serializeSchedule(s))
-    expect(result).toEqual({ ok: true, value: s })
+    expect(result).toEqual({ ok: true, value: s, warnings: [] })
   })
 
   it('pretty-prints with 2 spaces', () => {
-    expect(serializeSchedule(createEmptySchedule())).toMatch(/^\{\n {2}"version": 1,/)
+    expect(serializeSchedule(createEmptySchedule())).toMatch(/^\{\n {2}"version": 2,/)
   })
 
   it('returns ok:false for malformed JSON without throwing', () => {

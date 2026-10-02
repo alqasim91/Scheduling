@@ -23,7 +23,7 @@ describe('Editor', () => {
     await user.click(screen.getByRole('button', { name: 'Load sample' }))
     expect(preview()).toContain('Build with Gemma 4')
     expect(screen.getByLabelText('Event title')).toHaveValue('Google for Developers Day: Cairo')
-    expect(count('rows')).toBe(9)
+    expect(count('rows')).toBe(0)
     expect(count('items')).toBe(12)
   })
 
@@ -35,7 +35,7 @@ describe('Editor', () => {
     expect(count('items')).toBe(12)
     await startBlank(user)
     expect(count('items')).toBe(0)
-    expect(count('rows')).toBe(1)
+    expect(count('rows')).toBe(0)
     expect(preview()).not.toContain('Gemma')
   })
 
@@ -54,11 +54,13 @@ describe('Editor', () => {
   it('edits an item continuation label', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: /^\+ Add item \(row 1, Track 1\)/ }))
-    await user.click(screen.getByRole('button', { name: '+ Add row' }))
-    await user.type(screen.getByLabelText('End override'), '10:20')
-    await user.type(screen.getByLabelText('Continuation label'), 'Lab')
-    expect(preview()).toContain('Lab continues until 10:20')
+    await user.click(screen.getByRole('button', { name: 'Load sample' }))
+    expect(preview()).toContain('Intermediate GKE session continues until 17:20')
+    await user.click(screen.getByRole('button', { name: /Scale Distributed/ }))
+    const label = screen.getByLabelText('Continuation label')
+    await user.clear(label)
+    await user.type(label, 'Lab')
+    expect(preview()).toContain('Lab continues until 17:20')
   })
 
   it('uses a neutral timezone example', () => {
@@ -84,58 +86,84 @@ describe('Editor', () => {
     expect(preview()).toContain('Beginner')
   })
 
-  it('+ Add in an empty cell adds an item and opens its form', async () => {
+  it('+ Add session adds a 30 minute session on the first track and opens its form', async () => {
     const user = userEvent.setup()
     render(<App />)
     expect(count('items')).toBe(0)
-    await user.click(screen.getByRole('button', { name: /^\+ Add item \(row 1, Track 1\)/ }))
+    await user.click(screen.getByRole('button', { name: '+ Add session' }))
     expect(count('items')).toBe(1)
     expect(screen.getByRole('button', { name: /New session/ })).toBeInTheDocument()
     expect(screen.getByLabelText('Item title')).toHaveValue('New session')
+    expect(screen.getByLabelText('Start')).toHaveValue('09:00')
+    expect(screen.getByLabelText('End')).toHaveValue('09:30')
     expect(preview()).toContain('New session')
-    // The cell is no longer empty.
-    expect(screen.queryByRole('button', { name: /^\+ Add item \(row 1, Track 1\)/ })).not.toBeInTheDocument()
+    // The next one goes right after it.
+    await user.click(screen.getByRole('button', { name: '+ Add session' }))
+    expect(screen.getByLabelText('Start')).toHaveValue('09:30')
   })
 
-  it('Merge right makes the item span both columns', async () => {
+  it('First and Last track make the item span both columns', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: /^\+ Add item \(row 1, Track 1\)/ }))
-    const merge = screen.getByRole('button', { name: /Merge right/ })
-    expect(merge).toBeEnabled()
-    expect(screen.getByRole('button', { name: /Merge left/ })).toBeDisabled()
-    await user.click(merge)
-
-    const cell = screen.getByRole('button', { name: /New session/ }).closest('td')
-    expect(cell).toHaveAttribute('colspan', '2')
-    expect(screen.queryByRole('button', { name: /^\+ Add item/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Merge right/ })).toBeDisabled()
-    expect(preview()).toMatch(/grid-column:2 \/ 4/)
-
-    await user.click(screen.getByRole('button', { name: /Shrink right/ }))
-    expect(cell).toHaveAttribute('colspan', '1')
-  })
-
-  it('refuses a merge into an occupied cell by disabling the button', async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    await user.click(screen.getByRole('button', { name: /^\+ Add item \(row 1, Track 2\)/ }))
-    await user.click(screen.getByRole('button', { name: /^\+ Add item \(row 1, Track 1\)/ }))
-    expect(screen.getByRole('button', { name: /Merge right/ })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '+ Add session' }))
+    expect(screen.getByRole('button', { name: /Span all columns/ })).toBeEnabled()
+    await user.selectOptions(screen.getByLabelText('Last track'), 'Track 2')
     expect(screen.getByRole('button', { name: /Span all columns/ })).toBeDisabled()
+    expect(preview()).toMatch(/grid-column:2 \/ 4/)
+    await user.selectOptions(screen.getByLabelText('Last track'), 'Track 1')
+    expect(preview()).toMatch(/grid-column:2 \/ 3/)
+    await user.click(screen.getByRole('button', { name: /Span all columns/ }))
+    expect(preview()).toMatch(/grid-column:2 \/ 4/)
+  })
+
+  it('refuses to span into a track that is busy at that time, by disabling the choice', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: '+ Add session' })) // Track 1 09:00-09:30
+    await user.click(screen.getByRole('button', { name: '+ Add session' })) // Track 1 09:30-10:00
+    await user.selectOptions(screen.getByLabelText('First track'), 'Track 2') // now Track 2 09:30-10:00
+    await user.click(screen.getByRole('button', { name: /09:00 – 09:30/ }))
+    const last = screen.getByLabelText('Last track')
+    // Widening the first session to Track 2 is fine while it ends at 09:30 ...
+    expect(within(last).getByRole('option', { name: 'Track 2' })).toBeEnabled()
+    // ... but not once it runs into the session that starts there.
+    const end = screen.getByLabelText('End')
+    await user.clear(end)
+    await user.type(end, '09:45')
+    expect(within(last).getByRole('option', { name: 'Track 2' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Span all columns/ })).toBeDisabled()
+  })
+
+  it('refuses a start or end that would overlap another session in the same track', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: '+ Add session' })) // 09:00-09:30
+    await user.click(screen.getByRole('button', { name: '+ Add session' })) // 09:30-10:00
+    const start = screen.getByLabelText('Start')
+    await user.clear(start)
+    await user.type(start, '09:15')
+    expect(start).toHaveAttribute('aria-invalid', 'true')
+    expect(preview()).toContain('09:30 – 10:00')
+    await user.clear(start)
+    await user.type(start, '09:35')
+    expect(start).toHaveAttribute('aria-invalid', 'false')
+    expect(preview()).toContain('09:35 – 10:00')
   })
 
   it('edits an item and shows its changes in the preview', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: /^\+ Add item \(row 1, Track 1\)/ }))
+    await user.click(screen.getByRole('button', { name: '+ Add session' }))
     const title = screen.getByLabelText('Item title')
     await user.clear(title)
     await user.type(title, 'Keynote')
     await user.type(screen.getByLabelText('Speaker'), 'Ada')
     await user.selectOptions(screen.getByLabelText('Variant'), 'highlight')
+    await user.type(screen.getByLabelText('Note', { selector: 'input[type=text]' }), 'Main hall')
     expect(preview()).toContain('class="ev key"')
     expect(preview()).toContain('Ada')
+    expect(preview()).toContain('<p class="small"')
+    expect(preview()).toContain('Main hall')
     await user.click(screen.getByRole('button', { name: 'Delete item' }))
     expect(count('items')).toBe(0)
     expect(screen.queryByLabelText('Item title')).not.toBeInTheDocument()
@@ -169,10 +197,12 @@ describe('Editor', () => {
   it('rejects a row start that is not before its end', async () => {
     const user = userEvent.setup()
     render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Table' }))
+    await user.click(screen.getByRole('button', { name: '+ Add row' })) // 09:00-09:30
     const start = screen.getByLabelText('Row 1 start')
     const before = preview()
     await user.clear(start)
-    await user.type(start, '11:00') // default row is 09:00-10:00
+    await user.type(start, '11:00')
     expect(start).toHaveAttribute('aria-invalid', 'true')
     expect(preview()).toBe(before)
     await user.clear(start)
@@ -181,17 +211,20 @@ describe('Editor', () => {
     expect(preview()).toContain('09:15')
   })
 
-  it('adds, moves and removes rows', async () => {
+  it('adds, moves and removes table rows', async () => {
     const user = userEvent.setup()
     render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Table' }))
+    expect(count('rows')).toBe(0) // a blank grid has no sessions to derive rows from
+    await user.click(screen.getByRole('button', { name: '+ Add row' }))
     await user.click(screen.getByRole('button', { name: '+ Add row' }))
     expect(count('rows')).toBe(2)
-    expect(screen.getByLabelText('Row 2 start')).toHaveValue('10:00')
+    expect(screen.getByLabelText('Row 2 start')).toHaveValue('09:30')
     await user.click(screen.getByRole('button', { name: 'Insert row after row 1' }))
     expect(count('rows')).toBe(3)
-    expect(screen.getByLabelText('Row 2 start')).toHaveValue('10:00')
+    expect(screen.getByLabelText('Row 2 start')).toHaveValue('09:30')
     await user.click(screen.getByRole('button', { name: 'Move row 1 down' }))
-    expect(screen.getByLabelText('Row 1 start')).toHaveValue('10:00')
+    expect(screen.getByLabelText('Row 1 start')).toHaveValue('09:30')
     await user.click(screen.getByRole('button', { name: 'Remove row 3' }))
     expect(count('rows')).toBe(2)
   })
@@ -390,17 +423,19 @@ describe('Editor', () => {
 
     it('every free-text field is dir="auto"', () => {
       render(<App />)
-      for (const label of ['Event title', 'Title highlight', 'Venue', 'Status', 'Notes', 'Column 1 name', 'Row 1 note']) {
+      for (const label of ['Event title', 'Title highlight', 'Venue', 'Status', 'Notes', 'Column 1 name']) {
         expect(screen.getByLabelText(label), label).toHaveAttribute('dir', 'auto')
       }
     })
   })
 
   describe('table mode', () => {
+    /** Table mode on the blank schedule, with its first row (09:00-09:30) added. */
     async function openTable() {
       const user = userEvent.setup()
       render(<App />)
       await user.click(screen.getByRole('button', { name: 'Table' }))
+      await user.click(screen.getByRole('button', { name: '+ Add row' }))
       return user
     }
 
@@ -494,11 +529,11 @@ describe('Editor', () => {
       confirm.mockRestore()
     })
 
-    it('rows work like in the grid: add, insert, times and notes', async () => {
+    it('rows: add, times and notes', async () => {
       const user = await openTable()
       await user.click(screen.getByRole('button', { name: '+ Add row' }))
       expect(count('rows')).toBe(2)
-      expect(screen.getByLabelText('Session for row 10:00')).toBeInTheDocument()
+      expect(screen.getByLabelText('Session for row 09:30')).toBeInTheDocument()
       await user.type(screen.getByLabelText('Row 1 note'), 'Bring a laptop')
       expect(preview()).toContain('<tr class="note"')
       expect(preview()).toContain('Bring a laptop')
@@ -513,6 +548,7 @@ describe('Editor', () => {
       render(<App />)
       await user.click(screen.getByRole('button', { name: 'Load sample' }))
       await user.click(screen.getByRole('button', { name: 'Table' }))
+      expect(count('rows')).toBe(9) // first switch: one row per grid slot
       await user.type(screen.getByLabelText('Session for row 13:30'), 'Kept cell')
       await user.click(screen.getByRole('button', { name: 'Track grid' }))
       expect(count('items')).toBe(12)

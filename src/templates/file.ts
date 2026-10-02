@@ -16,7 +16,7 @@ const TemplateFileSchema = z.object({
   }),
 })
 
-export type ParseTemplateResult = { ok: true; value: TemplateContent } | { ok: false; errors: string[] }
+export type ParseTemplateResult = { ok: true; value: TemplateContent; warnings: string[] } | { ok: false; errors: string[] }
 
 export function serializeTemplateFile(content: TemplateContent): string {
   return JSON.stringify(
@@ -42,6 +42,7 @@ export function parseTemplateValue(raw: unknown): ParseTemplateResult {
   return {
     ok: true,
     value: { name: shape.data.template.name.trim(), description: shape.data.template.description, schedule: schedule.value },
+    warnings: schedule.warnings,
   }
 }
 

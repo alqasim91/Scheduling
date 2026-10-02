@@ -8,7 +8,7 @@ export const workshop: Template = {
   description: 'A one-day workshop as a table: a module, its facilitator, format tags and materials for each time slot.',
   builtin: true,
   schedule: {
-    version: 1,
+    version: 2,
     event: {
       title: 'Hands-on Workshop',
       titleHighlight: 'Workshop',

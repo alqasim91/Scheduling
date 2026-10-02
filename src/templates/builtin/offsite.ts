@@ -8,7 +8,7 @@ export const offsite: Template = {
   description: 'A team offsite as a flat table: session, owner, room, tags and an end time, with a note under one row.',
   builtin: true,
   schedule: {
-    version: 1,
+    version: 2,
     event: {
       title: 'Team Offsite',
       titleHighlight: 'Offsite',

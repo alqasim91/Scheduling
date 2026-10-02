@@ -1,0 +1,1371 @@
+{
+ "cairo": {
+  "version": 1,
+  "event": {
+   "title": "Google for Developers Day: Cairo",
+   "titleHighlight": "Developers",
+   "date": "2026-10-02",
+   "timezone": "Africa/Cairo",
+   "venue": "The GrEEK Campus Downtown, 171 El Tahrir Street, Abdeen",
+   "status": "You're registered",
+   "notes": "**Two sessions run at once in three slots:** 14:20, 15:35 and 16:35. Pick one lane per slot. The Intermediate session at 16:35 runs 15 minutes longer than the Beginner one.",
+   "url": "https://rsvp.withgoogle.com/events/google-for-developers-day-cairo"
+  },
+  "branding": {
+   "logo": "data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'66'%20height%3D'12'%20viewBox%3D'0%200%2066%2012'%3E%3Ccircle%20cx%3D'6'%20cy%3D'6'%20r%3D'6'%20fill%3D'%230b57d0'%2F%3E%3Ccircle%20cx%3D'24'%20cy%3D'6'%20r%3D'6'%20fill%3D'%23d93025'%2F%3E%3Ccircle%20cx%3D'42'%20cy%3D'6'%20r%3D'6'%20fill%3D'%23f9ab00'%2F%3E%3Ccircle%20cx%3D'60'%20cy%3D'6'%20r%3D'6'%20fill%3D'%23188038'%2F%3E%3C%2Fsvg%3E",
+   "colors": {
+    "primary": "#0b57d0",
+    "accent": "#d93025",
+    "background": "#f8fafd",
+    "surface": "#ffffff",
+    "text": "#1f1f1f",
+    "muted": "#444746",
+    "line": "#c4c7c5"
+   },
+   "fonts": {
+    "display": "'Google Sans','Product Sans',Roboto,Arial,sans-serif",
+    "body": "Roboto,'Helvetica Neue',Arial,sans-serif",
+    "mono": "'Roboto Mono',ui-monospace,Menlo,monospace",
+    "webFonts": [
+     "Roboto",
+     "Roboto Mono"
+    ]
+   },
+   "theme": "auto",
+   "motion": {
+    "preset": "none",
+    "logoAnimation": false
+   }
+  },
+  "mode": "track-grid",
+  "columns": [
+   {
+    "id": "col-beginner",
+    "name": "Beginner",
+    "color": "#188038",
+    "type": "track"
+   },
+   {
+    "id": "col-intermediate",
+    "name": "Intermediate",
+    "color": "#0b57d0",
+    "type": "track"
+   }
+  ],
+  "rows": [
+   {
+    "id": "row-1",
+    "start": "13:30",
+    "end": "14:00"
+   },
+   {
+    "id": "row-2",
+    "start": "14:00",
+    "end": "14:30",
+    "note": "The page also lists a 5 minute room change at 14:15 – 14:20, and the first sessions start at 14:20, before the keynote's 14:30 end."
+   },
+   {
+    "id": "row-3",
+    "start": "14:20",
+    "end": "15:05"
+   },
+   {
+    "id": "row-4",
+    "start": "15:05",
+    "end": "15:35"
+   },
+   {
+    "id": "row-5",
+    "start": "15:35",
+    "end": "16:20"
+   },
+   {
+    "id": "row-6",
+    "start": "16:20",
+    "end": "16:35"
+   },
+   {
+    "id": "row-7",
+    "start": "16:35",
+    "end": "17:05"
+   },
+   {
+    "id": "row-8",
+    "start": "17:05",
+    "end": "17:35"
+   },
+   {
+    "id": "row-9",
+    "start": "17:35",
+    "end": "17:45"
+   }
+  ],
+  "items": [
+   {
+    "id": "item-welcome",
+    "rowId": "row-1",
+    "columnIds": [
+     "col-beginner",
+     "col-intermediate"
+    ],
+    "title": "Registration & Welcome",
+    "variant": "break"
+   },
+   {
+    "id": "item-keynote",
+    "rowId": "row-2",
+    "columnIds": [
+     "col-beginner",
+     "col-intermediate"
+    ],
+    "title": "Opening & Keynote",
+    "variant": "highlight"
+   },
+   {
+    "id": "item-b1",
+    "rowId": "row-3",
+    "columnIds": [
+     "col-beginner"
+    ],
+    "title": "Beyond the Prompt: Context and Harness Engineering for the Modern Developer",
+    "speaker": "Tarek Alabd",
+    "variant": "session"
+   },
+   {
+    "id": "item-i1",
+    "rowId": "row-3",
+    "columnIds": [
+     "col-intermediate"
+    ],
+    "title": "Safeguarding Agents with Agents Sandbox: A hands-on lab",
+    "speaker": "Abdelfettah Sghiouar",
+    "variant": "session"
+   },
+   {
+    "id": "item-lunch",
+    "rowId": "row-4",
+    "columnIds": [
+     "col-beginner",
+     "col-intermediate"
+    ],
+    "title": "Lunch",
+    "variant": "break"
+   },
+   {
+    "id": "item-b2",
+    "rowId": "row-5",
+    "columnIds": [
+     "col-beginner"
+    ],
+    "title": "Flutter Agentic UI, When Apps Start Thinking, Designing, and Acting",
+    "speaker": "Ahmed Abu Eldahab",
+    "variant": "session"
+   },
+   {
+    "id": "item-i2",
+    "rowId": "row-5",
+    "columnIds": [
+     "col-intermediate"
+    ],
+    "title": "A return of experience. Real-World Predictive vs Generative Challenges in AI for Good",
+    "speaker": "Sarra Al-Ateif",
+    "variant": "session"
+   },
+   {
+    "id": "item-coffee",
+    "rowId": "row-6",
+    "columnIds": [
+     "col-beginner",
+     "col-intermediate"
+    ],
+    "title": "Coffee Break",
+    "variant": "break"
+   },
+   {
+    "id": "item-b3",
+    "rowId": "row-7",
+    "columnIds": [
+     "col-beginner"
+    ],
+    "title": "Your AI Made a Decision. Can You Explain It?",
+    "speaker": "Dr. Asma Merabet",
+    "variant": "session"
+   },
+   {
+    "id": "item-i3",
+    "rowId": "row-7",
+    "columnIds": [
+     "col-intermediate"
+    ],
+    "title": "Scale Distributed Data Processing with GKE to build a Knowledge Graph in BigQuery",
+    "speaker": "Ibtissem Hattab",
+    "end": "17:20",
+    "continuationLabel": "Intermediate GKE session",
+    "variant": "session"
+   },
+   {
+    "id": "item-b4",
+    "rowId": "row-8",
+    "columnIds": [
+     "col-beginner"
+    ],
+    "title": "Build with Gemma 4",
+    "speaker": "Eman Alrefai",
+    "variant": "session"
+   },
+   {
+    "id": "item-closing",
+    "rowId": "row-9",
+    "columnIds": [
+     "col-beginner",
+     "col-intermediate"
+    ],
+    "title": "Closing remarks",
+    "variant": "break"
+   }
+  ],
+  "speakers": [
+   {
+    "id": "spk-rc",
+    "name": "Ramesh Chander",
+    "role": "Head of Developer Relations MENAT, Google",
+    "color": "#0b57d0"
+   },
+   {
+    "id": "spk-as",
+    "name": "Abdelfettah Sghiouar",
+    "role": "Cloud Developer Advocate, Google",
+    "color": "#d93025"
+   },
+   {
+    "id": "spk-aa",
+    "name": "Ahmed Abu Eldahab",
+    "role": "CEO and Flutter GDE",
+    "color": "#188038"
+   },
+   {
+    "id": "spk-ih",
+    "name": "Ibtissem Hattab",
+    "role": "SRE-MLOps Engineer and Cloud GDE",
+    "color": "#b06000"
+   },
+   {
+    "id": "spk-ta",
+    "name": "Tarek Alabd",
+    "role": "Software Engineering Team Lead and Flutter GDE",
+    "color": "#0b57d0"
+   },
+   {
+    "id": "spk-am",
+    "name": "Dr. Asma Merabet",
+    "role": "AI Engineer and Backend Developer & AI GDE",
+    "color": "#d93025"
+   },
+   {
+    "id": "spk-sa",
+    "name": "Sarra Al-Ateif",
+    "role": "Assistant Professor and AI GDE",
+    "color": "#188038"
+   },
+   {
+    "id": "spk-ea",
+    "name": "Eman Alrefai",
+    "role": "Applied Scientist and Cloud AI GDE",
+    "color": "#b06000"
+   }
+  ]
+ },
+ "rtl": {
+  "version": 1,
+  "event": {
+   "title": "ملتقى المطورين السنوي",
+   "titleHighlight": "المطورين",
+   "date": "2026-11-14",
+   "timezone": "Africa/Cairo",
+   "venue": "قاعة المؤتمرات، المبنى الرئيسي",
+   "status": "التسجيل مفتوح",
+   "notes": "**تنبيه:** تبدأ الجلستان الأولى والثانية في وقت واحد، يرجى اختيار مسار واحد.",
+   "url": "https://example.org/event",
+   "locale": "ar-EG"
+  },
+  "branding": {
+   "logo": null,
+   "colors": {
+    "primary": "#00695c",
+    "accent": "#c62828",
+    "background": "#f6faf9",
+    "surface": "#ffffff",
+    "text": "#1b1f1e",
+    "muted": "#4a5553",
+    "line": "#c5d0ce",
+    "note": "#f9ab00"
+   },
+   "fonts": {
+    "display": "'Cairo', 'Segoe UI', Tahoma, system-ui, sans-serif",
+    "body": "'Tajawal', 'Segoe UI', Tahoma, system-ui, sans-serif",
+    "mono": "ui-monospace, Menlo, Consolas, monospace",
+    "webFonts": [
+     "Cairo",
+     "Tajawal"
+    ]
+   },
+   "theme": "light",
+   "motion": {
+    "preset": "none",
+    "logoAnimation": false
+   }
+  },
+  "mode": "track-grid",
+  "columns": [
+   {
+    "id": "c1",
+    "name": "المسار التقني",
+    "color": "#00695c",
+    "type": "track"
+   },
+   {
+    "id": "c2",
+    "name": "مسار البيانات",
+    "color": "#1565c0",
+    "type": "track"
+   }
+  ],
+  "rows": [
+   {
+    "id": "r1",
+    "start": "09:00",
+    "end": "09:30"
+   },
+   {
+    "id": "r2",
+    "start": "09:30",
+    "end": "10:30",
+    "note": "الكلمة الافتتاحية في القاعة الكبرى."
+   },
+   {
+    "id": "r3",
+    "start": "10:45",
+    "end": "11:30"
+   },
+   {
+    "id": "r4",
+    "start": "11:30",
+    "end": "12:00"
+   },
+   {
+    "id": "r5",
+    "start": "12:00",
+    "end": "12:30"
+   }
+  ],
+  "items": [
+   {
+    "id": "i1",
+    "rowId": "r1",
+    "columnIds": [
+     "c1",
+     "c2"
+    ],
+    "title": "التسجيل والاستقبال",
+    "variant": "break"
+   },
+   {
+    "id": "i2",
+    "rowId": "r2",
+    "columnIds": [
+     "c1",
+     "c2"
+    ],
+    "title": "الكلمة الافتتاحية",
+    "variant": "highlight"
+   },
+   {
+    "id": "i3",
+    "rowId": "r3",
+    "columnIds": [
+     "c1"
+    ],
+    "title": "مقدمة في تصميم الأنظمة الموزعة",
+    "speaker": "سارة أحمد",
+    "variant": "session"
+   },
+   {
+    "id": "i4",
+    "rowId": "r3",
+    "columnIds": [
+     "c2"
+    ],
+    "title": "أساسيات تحليل البيانات",
+    "speaker": "محمد علي",
+    "end": "12:00",
+    "continuationLabel": "جلسة تحليل البيانات",
+    "variant": "session"
+   },
+   {
+    "id": "i5",
+    "rowId": "r4",
+    "columnIds": [
+     "c1"
+    ],
+    "title": "ورشة عمل تطبيقية",
+    "speaker": "سارة أحمد",
+    "variant": "session"
+   },
+   {
+    "id": "i6",
+    "rowId": "r5",
+    "columnIds": [
+     "c1",
+     "c2"
+    ],
+    "title": "استراحة وختام",
+    "variant": "break"
+   }
+  ],
+  "speakers": [
+   {
+    "id": "s1",
+    "name": "سارة أحمد",
+    "role": "مهندسة برمجيات",
+    "color": "#00695c"
+   },
+   {
+    "id": "s2",
+    "name": "محمد علي",
+    "role": "محلل بيانات",
+    "color": "#1565c0"
+   }
+  ]
+ },
+ "tpl-conference-two-tracks": {
+  "version": 1,
+  "event": {
+   "title": "Company Name Summit",
+   "titleHighlight": "Summit",
+   "date": "2026-06-04",
+   "timezone": "Europe/London",
+   "venue": "Venue name, City",
+   "status": "Registration open",
+   "notes": "**Two sessions run at once** after the keynote. Pick one track for each slot.",
+   "url": "https://example.org/summit"
+  },
+  "branding": {
+   "logo": null,
+   "colors": {
+    "primary": "#3949ab",
+    "accent": "#e65100",
+    "background": "#f7f8fc",
+    "surface": "#ffffff",
+    "text": "#1b1d29",
+    "muted": "#4b4f63",
+    "line": "#cfd3e3",
+    "note": "#f9ab00"
+   },
+   "fonts": {
+    "display": "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "body": "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "mono": "ui-monospace, Menlo, Consolas, monospace"
+   },
+   "theme": "auto",
+   "motion": {
+    "preset": "none",
+    "logoAnimation": false
+   }
+  },
+  "mode": "track-grid",
+  "columns": [
+   {
+    "id": "track-a",
+    "name": "Track A",
+    "color": "#00897b",
+    "type": "track"
+   },
+   {
+    "id": "track-b",
+    "name": "Track B",
+    "color": "#3949ab",
+    "type": "track"
+   }
+  ],
+  "rows": [
+   {
+    "id": "r1",
+    "start": "09:00",
+    "end": "09:30"
+   },
+   {
+    "id": "r2",
+    "start": "09:30",
+    "end": "10:15"
+   },
+   {
+    "id": "r3",
+    "start": "10:30",
+    "end": "11:15"
+   },
+   {
+    "id": "r4",
+    "start": "11:15",
+    "end": "11:30"
+   },
+   {
+    "id": "r5",
+    "start": "11:30",
+    "end": "12:15"
+   },
+   {
+    "id": "r6",
+    "start": "12:15",
+    "end": "12:45"
+   },
+   {
+    "id": "r7",
+    "start": "12:45",
+    "end": "13:45"
+   },
+   {
+    "id": "r8",
+    "start": "13:45",
+    "end": "14:30"
+   },
+   {
+    "id": "r9",
+    "start": "14:30",
+    "end": "15:00"
+   }
+  ],
+  "items": [
+   {
+    "variant": "break",
+    "id": "i1",
+    "rowId": "r1",
+    "columnIds": [
+     "track-a",
+     "track-b"
+    ],
+    "title": "Registration and coffee"
+   },
+   {
+    "variant": "highlight",
+    "id": "i2",
+    "rowId": "r2",
+    "columnIds": [
+     "track-a",
+     "track-b"
+    ],
+    "title": "Opening keynote",
+    "speaker": "Alex Example"
+   },
+   {
+    "variant": "session",
+    "id": "i3",
+    "rowId": "r3",
+    "columnIds": [
+     "track-a"
+    ],
+    "title": "Session title",
+    "speaker": "Sam Sample"
+   },
+   {
+    "variant": "session",
+    "id": "i4",
+    "rowId": "r3",
+    "columnIds": [
+     "track-b"
+    ],
+    "title": "Session title",
+    "speaker": "Taylor Template"
+   },
+   {
+    "variant": "break",
+    "id": "i5",
+    "rowId": "r4",
+    "columnIds": [
+     "track-a",
+     "track-b"
+    ],
+    "title": "Coffee break"
+   },
+   {
+    "variant": "session",
+    "id": "i6",
+    "rowId": "r5",
+    "columnIds": [
+     "track-a"
+    ],
+    "title": "Session title",
+    "speaker": "Jordan Placeholder"
+   },
+   {
+    "variant": "session",
+    "id": "i7",
+    "rowId": "r5",
+    "columnIds": [
+     "track-b"
+    ],
+    "title": "Workshop title",
+    "speaker": "Sam Sample",
+    "end": "12:45",
+    "continuationLabel": "Track B workshop"
+   },
+   {
+    "variant": "session",
+    "id": "i8",
+    "rowId": "r6",
+    "columnIds": [
+     "track-a"
+    ],
+    "title": "Session title",
+    "speaker": "Taylor Template"
+   },
+   {
+    "variant": "break",
+    "id": "i9",
+    "rowId": "r7",
+    "columnIds": [
+     "track-a",
+     "track-b"
+    ],
+    "title": "Lunch"
+   },
+   {
+    "variant": "session",
+    "id": "i10",
+    "rowId": "r8",
+    "columnIds": [
+     "track-a"
+    ],
+    "title": "Session title",
+    "speaker": "Jordan Placeholder"
+   },
+   {
+    "variant": "session",
+    "id": "i11",
+    "rowId": "r8",
+    "columnIds": [
+     "track-b"
+    ],
+    "title": "Session title",
+    "speaker": "Alex Example"
+   },
+   {
+    "variant": "highlight",
+    "id": "i12",
+    "rowId": "r9",
+    "columnIds": [
+     "track-a",
+     "track-b"
+    ],
+    "title": "Closing remarks",
+    "speaker": "Alex Example"
+   }
+  ],
+  "speakers": [
+   {
+    "id": "s1",
+    "name": "Alex Example",
+    "role": "Job title, Company Name",
+    "color": "#3949ab"
+   },
+   {
+    "id": "s2",
+    "name": "Sam Sample",
+    "role": "Job title, Company Name",
+    "color": "#00897b"
+   },
+   {
+    "id": "s3",
+    "name": "Taylor Template",
+    "role": "Job title, Company Name",
+    "color": "#e65100"
+   },
+   {
+    "id": "s4",
+    "name": "Jordan Placeholder",
+    "role": "Job title, Company Name",
+    "color": "#6a1b9a"
+   }
+  ]
+ },
+ "tpl-single-track-meetup": {
+  "version": 1,
+  "event": {
+   "title": "Community Meetup",
+   "titleHighlight": "Meetup",
+   "date": "2026-06-04",
+   "timezone": "Europe/London",
+   "venue": "Venue name, City",
+   "status": "Free to attend",
+   "notes": "**Please RSVP** so we can plan food and seating.",
+   "url": "https://example.org/meetup"
+  },
+  "branding": {
+   "logo": null,
+   "colors": {
+    "primary": "#00796b",
+    "accent": "#f4511e",
+    "background": "#f5faf9",
+    "surface": "#ffffff",
+    "text": "#18211f",
+    "muted": "#44514e",
+    "line": "#c7d6d3",
+    "note": "#f9ab00"
+   },
+   "fonts": {
+    "display": "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "body": "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "mono": "ui-monospace, Menlo, Consolas, monospace"
+   },
+   "theme": "auto",
+   "motion": {
+    "preset": "none",
+    "logoAnimation": false
+   }
+  },
+  "mode": "track-grid",
+  "columns": [
+   {
+    "id": "main",
+    "name": "Main track",
+    "color": "#00796b",
+    "type": "track"
+   }
+  ],
+  "rows": [
+   {
+    "id": "r1",
+    "start": "18:30",
+    "end": "19:00"
+   },
+   {
+    "id": "r2",
+    "start": "19:00",
+    "end": "19:10"
+   },
+   {
+    "id": "r3",
+    "start": "19:10",
+    "end": "19:50"
+   },
+   {
+    "id": "r4",
+    "start": "19:50",
+    "end": "20:30"
+   },
+   {
+    "id": "r5",
+    "start": "20:30",
+    "end": "21:00"
+   },
+   {
+    "id": "r6",
+    "start": "21:00",
+    "end": "22:00"
+   }
+  ],
+  "items": [
+   {
+    "variant": "break",
+    "id": "i1",
+    "rowId": "r1",
+    "columnIds": [
+     "main"
+    ],
+    "title": "Doors open, food and drinks"
+   },
+   {
+    "variant": "highlight",
+    "id": "i2",
+    "rowId": "r2",
+    "columnIds": [
+     "main"
+    ],
+    "title": "Welcome",
+    "speaker": "Organiser"
+   },
+   {
+    "variant": "session",
+    "id": "i3",
+    "rowId": "r3",
+    "columnIds": [
+     "main"
+    ],
+    "title": "Talk title",
+    "speaker": "Alex Example"
+   },
+   {
+    "variant": "session",
+    "id": "i4",
+    "rowId": "r4",
+    "columnIds": [
+     "main"
+    ],
+    "title": "Talk title",
+    "speaker": "Sam Sample"
+   },
+   {
+    "variant": "session",
+    "id": "i5",
+    "rowId": "r5",
+    "columnIds": [
+     "main"
+    ],
+    "title": "Lightning talks"
+   },
+   {
+    "variant": "break",
+    "id": "i6",
+    "rowId": "r6",
+    "columnIds": [
+     "main"
+    ],
+    "title": "Networking"
+   }
+  ],
+  "speakers": [
+   {
+    "id": "s1",
+    "name": "Alex Example",
+    "role": "Job title, Company Name",
+    "color": "#00796b"
+   },
+   {
+    "id": "s2",
+    "name": "Sam Sample",
+    "role": "Job title, Company Name",
+    "color": "#f4511e"
+   }
+  ]
+ },
+ "tpl-workshop-day": {
+  "version": 1,
+  "event": {
+   "title": "Hands-on Workshop",
+   "titleHighlight": "Workshop",
+   "date": "2026-06-04",
+   "timezone": "Europe/London",
+   "venue": "Venue name, City",
+   "status": "Places limited",
+   "notes": "**Bring a laptop.** Setup instructions are sent a week before.",
+   "url": "https://example.org/workshop"
+  },
+  "branding": {
+   "logo": null,
+   "colors": {
+    "primary": "#6a1b9a",
+    "accent": "#00897b",
+    "background": "#faf7fc",
+    "surface": "#ffffff",
+    "text": "#211a26",
+    "muted": "#51485a",
+    "line": "#d8cfe0",
+    "note": "#f9ab00"
+   },
+   "fonts": {
+    "display": "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "body": "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "mono": "ui-monospace, Menlo, Consolas, monospace"
+   },
+   "theme": "auto",
+   "motion": {
+    "preset": "none",
+    "logoAnimation": false
+   }
+  },
+  "mode": "table",
+  "columns": [
+   {
+    "id": "module",
+    "name": "Module",
+    "color": "#51485a",
+    "type": "text"
+   },
+   {
+    "id": "facilitator",
+    "name": "Facilitator",
+    "color": "#6a1b9a",
+    "type": "person"
+   },
+   {
+    "id": "format",
+    "name": "Format",
+    "color": "#6a1b9a",
+    "type": "tag"
+   },
+   {
+    "id": "materials",
+    "name": "Materials",
+    "color": "#51485a",
+    "type": "text"
+   }
+  ],
+  "rows": [
+   {
+    "id": "r1",
+    "start": "09:00",
+    "end": "09:30",
+    "cells": {
+     "module": "Welcome and goals",
+     "facilitator": "Facilitator One",
+     "format": "Discussion",
+     "materials": "Agenda sheet"
+    }
+   },
+   {
+    "id": "r2",
+    "start": "09:30",
+    "end": "10:30",
+    "cells": {
+     "module": "Module 1: Fundamentals",
+     "facilitator": "Facilitator One",
+     "format": "Lecture",
+     "materials": "Slides"
+    }
+   },
+   {
+    "id": "r3",
+    "start": "10:30",
+    "end": "10:45",
+    "cells": {
+     "module": "Break"
+    }
+   },
+   {
+    "id": "r4",
+    "start": "10:45",
+    "end": "12:15",
+    "note": "Work in pairs. Ask a facilitator if you get stuck.",
+    "cells": {
+     "module": "Module 2: Hands-on lab",
+     "facilitator": "Facilitator Two",
+     "format": "Hands-on, Pairs",
+     "materials": "Laptop required"
+    }
+   },
+   {
+    "id": "r5",
+    "start": "12:15",
+    "end": "13:15",
+    "cells": {
+     "module": "Lunch"
+    }
+   },
+   {
+    "id": "r6",
+    "start": "13:15",
+    "end": "14:45",
+    "cells": {
+     "module": "Module 3: Case study",
+     "facilitator": "Facilitator Two",
+     "format": "Group work",
+     "materials": "Case handout"
+    }
+   },
+   {
+    "id": "r7",
+    "start": "14:45",
+    "end": "15:30",
+    "cells": {
+     "module": "Module 4: Review and Q&A",
+     "facilitator": "Facilitator One",
+     "format": "Discussion, Q&A",
+     "materials": "Slides"
+    }
+   },
+   {
+    "id": "r8",
+    "start": "15:30",
+    "end": "16:00",
+    "cells": {
+     "module": "Wrap-up and next steps",
+     "facilitator": "Facilitator One",
+     "format": "Discussion"
+    }
+   }
+  ],
+  "items": [],
+  "speakers": [
+   {
+    "id": "s1",
+    "name": "Facilitator One",
+    "role": "Job title, Company Name",
+    "color": "#6a1b9a"
+   },
+   {
+    "id": "s2",
+    "name": "Facilitator Two",
+    "role": "Job title, Company Name",
+    "color": "#00897b"
+   }
+  ]
+ },
+ "tpl-team-offsite": {
+  "version": 1,
+  "event": {
+   "title": "Team Offsite",
+   "titleHighlight": "Offsite",
+   "date": "2026-06-04",
+   "timezone": "Europe/London",
+   "venue": "Venue name, City",
+   "status": "Invitation only",
+   "notes": "**Lunch is provided.** Please tell us about dietary needs beforehand.",
+   "url": "https://example.org/offsite"
+  },
+  "branding": {
+   "logo": null,
+   "colors": {
+    "primary": "#3949ab",
+    "accent": "#e65100",
+    "background": "#f7f8fc",
+    "surface": "#ffffff",
+    "text": "#1b1d29",
+    "muted": "#4b4f63",
+    "line": "#cfd3e3",
+    "note": "#f9ab00"
+   },
+   "fonts": {
+    "display": "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "body": "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    "mono": "ui-monospace, Menlo, Consolas, monospace"
+   },
+   "theme": "auto",
+   "motion": {
+    "preset": "none",
+    "logoAnimation": false
+   }
+  },
+  "mode": "table",
+  "columns": [
+   {
+    "id": "session",
+    "name": "Session",
+    "color": "#4b4f63",
+    "type": "text"
+   },
+   {
+    "id": "owner",
+    "name": "Owner",
+    "color": "#3949ab",
+    "type": "person"
+   },
+   {
+    "id": "room",
+    "name": "Room",
+    "color": "#4b4f63",
+    "type": "text"
+   },
+   {
+    "id": "tag",
+    "name": "Tag",
+    "color": "#00897b",
+    "type": "tag"
+   },
+   {
+    "id": "ends",
+    "name": "Ends",
+    "color": "#4b4f63",
+    "type": "time"
+   }
+  ],
+  "rows": [
+   {
+    "id": "r1",
+    "start": "09:00",
+    "end": "09:30",
+    "cells": {
+     "session": "Welcome and coffee",
+     "owner": "Facilitator One",
+     "room": "Foyer",
+     "tag": "Social",
+     "ends": "09:30"
+    }
+   },
+   {
+    "id": "r2",
+    "start": "09:30",
+    "end": "10:30",
+    "note": "Bring your team’s top three priorities.",
+    "cells": {
+     "session": "Roadmap review",
+     "owner": "Facilitator One",
+     "room": "Main hall",
+     "tag": "Planning, Roadmap",
+     "ends": "10:30"
+    }
+   },
+   {
+    "id": "r3",
+    "start": "10:30",
+    "end": "10:45",
+    "cells": {
+     "session": "Break",
+     "room": "Foyer"
+    }
+   },
+   {
+    "id": "r4",
+    "start": "10:45",
+    "end": "12:00",
+    "cells": {
+     "session": "Deep dive session",
+     "owner": "Facilitator Two",
+     "room": "Room A",
+     "tag": "Engineering, Q&A",
+     "ends": "12:00"
+    }
+   },
+   {
+    "id": "r5",
+    "start": "12:00",
+    "end": "13:00",
+    "cells": {
+     "session": "Lunch",
+     "room": "Courtyard",
+     "tag": "Social"
+    }
+   },
+   {
+    "id": "r6",
+    "start": "13:00",
+    "end": "14:15",
+    "cells": {
+     "session": "Workshop",
+     "owner": "Facilitator Three",
+     "room": "Room B",
+     "tag": "Design, Workshop",
+     "ends": "14:15"
+    }
+   },
+   {
+    "id": "r7",
+    "start": "14:15",
+    "end": "15:30",
+    "cells": {
+     "session": "Feedback roundtable",
+     "owner": "Guest facilitator",
+     "room": "Room A",
+     "tag": "Research",
+     "ends": "15:30"
+    }
+   },
+   {
+    "id": "r8",
+    "start": "15:30",
+    "end": "16:00",
+    "cells": {
+     "session": "Wrap-up and next steps",
+     "owner": "Facilitator One",
+     "room": "Main hall",
+     "tag": "Planning",
+     "ends": "16:00"
+    }
+   }
+  ],
+  "items": [],
+  "speakers": [
+   {
+    "id": "s1",
+    "name": "Facilitator One",
+    "role": "Job title, Company Name",
+    "color": "#3949ab"
+   },
+   {
+    "id": "s2",
+    "name": "Facilitator Two",
+    "role": "Job title, Company Name",
+    "color": "#00897b"
+   },
+   {
+    "id": "s3",
+    "name": "Facilitator Three",
+    "role": "Job title, Company Name",
+    "color": "#e65100"
+   }
+  ]
+ },
+ "tpl-arabic-conference": {
+  "version": 1,
+  "event": {
+   "title": "الملتقى السنوي",
+   "titleHighlight": "السنوي",
+   "date": "2026-06-04",
+   "timezone": "Africa/Cairo",
+   "venue": "اسم القاعة، المدينة",
+   "status": "التسجيل مفتوح",
+   "notes": "**تنبيه:** تبدأ الجلستان في وقت واحد، يرجى اختيار مسار واحد لكل فترة.",
+   "url": "https://example.org/forum",
+   "locale": "ar-EG"
+  },
+  "branding": {
+   "logo": null,
+   "colors": {
+    "primary": "#00695c",
+    "accent": "#c62828",
+    "background": "#f6faf9",
+    "surface": "#ffffff",
+    "text": "#1b1f1e",
+    "muted": "#4a5553",
+    "line": "#c5d0ce",
+    "note": "#f9ab00"
+   },
+   "fonts": {
+    "display": "'Cairo', 'Segoe UI', Tahoma, system-ui, sans-serif",
+    "body": "'Tajawal', 'Segoe UI', Tahoma, system-ui, sans-serif",
+    "mono": "ui-monospace, Menlo, Consolas, monospace",
+    "webFonts": [
+     "Cairo",
+     "Tajawal"
+    ]
+   },
+   "theme": "auto",
+   "motion": {
+    "preset": "none",
+    "logoAnimation": false
+   }
+  },
+  "mode": "track-grid",
+  "columns": [
+   {
+    "id": "track-a",
+    "name": "المسار الأول",
+    "color": "#00695c",
+    "type": "track"
+   },
+   {
+    "id": "track-b",
+    "name": "المسار الثاني",
+    "color": "#1565c0",
+    "type": "track"
+   }
+  ],
+  "rows": [
+   {
+    "id": "r1",
+    "start": "09:00",
+    "end": "09:30"
+   },
+   {
+    "id": "r2",
+    "start": "09:30",
+    "end": "10:30",
+    "note": "الكلمة الافتتاحية في القاعة الكبرى."
+   },
+   {
+    "id": "r3",
+    "start": "10:45",
+    "end": "11:30"
+   },
+   {
+    "id": "r4",
+    "start": "11:30",
+    "end": "12:00"
+   },
+   {
+    "id": "r5",
+    "start": "12:00",
+    "end": "13:00"
+   },
+   {
+    "id": "r6",
+    "start": "13:00",
+    "end": "14:00"
+   }
+  ],
+  "items": [
+   {
+    "variant": "break",
+    "id": "i1",
+    "rowId": "r1",
+    "columnIds": [
+     "track-a",
+     "track-b"
+    ],
+    "title": "التسجيل والاستقبال"
+   },
+   {
+    "variant": "highlight",
+    "id": "i2",
+    "rowId": "r2",
+    "columnIds": [
+     "track-a",
+     "track-b"
+    ],
+    "title": "الكلمة الافتتاحية",
+    "speaker": "أحمد المثال"
+   },
+   {
+    "variant": "session",
+    "id": "i3",
+    "rowId": "r3",
+    "columnIds": [
+     "track-a"
+    ],
+    "title": "عنوان الجلسة",
+    "speaker": "سلمى المثال"
+   },
+   {
+    "variant": "session",
+    "id": "i4",
+    "rowId": "r3",
+    "columnIds": [
+     "track-b"
+    ],
+    "title": "عنوان الجلسة",
+    "speaker": "خالد المثال",
+    "end": "12:00",
+    "continuationLabel": "جلسة المسار الثاني"
+   },
+   {
+    "variant": "session",
+    "id": "i5",
+    "rowId": "r4",
+    "columnIds": [
+     "track-a"
+    ],
+    "title": "ورشة عمل تطبيقية",
+    "speaker": "سلمى المثال"
+   },
+   {
+    "variant": "break",
+    "id": "i6",
+    "rowId": "r5",
+    "columnIds": [
+     "track-a",
+     "track-b"
+    ],
+    "title": "استراحة الغداء"
+   },
+   {
+    "variant": "highlight",
+    "id": "i7",
+    "rowId": "r6",
+    "columnIds": [
+     "track-a",
+     "track-b"
+    ],
+    "title": "الختام",
+    "speaker": "أحمد المثال"
+   }
+  ],
+  "speakers": [
+   {
+    "id": "s1",
+    "name": "أحمد المثال",
+    "role": "المسمى الوظيفي، اسم الشركة",
+    "color": "#00695c"
+   },
+   {
+    "id": "s2",
+    "name": "سلمى المثال",
+    "role": "المسمى الوظيفي، اسم الشركة",
+    "color": "#1565c0"
+   },
+   {
+    "id": "s3",
+    "name": "خالد المثال",
+    "role": "المسمى الوظيفي، اسم الشركة",
+    "color": "#c62828"
+   }
+  ]
+ }
+}

@@ -16,10 +16,10 @@ function localTimezone(): string {
   }
 }
 
-/** A valid, minimal schedule: track-grid mode, two track columns, one row, no items. */
+/** A valid, minimal schedule: track-grid mode, two track columns, no items and no table rows. */
 export function createEmptySchedule(): Schedule {
   return {
-    version: 1,
+    version: 2,
     event: {
       title: 'Untitled event',
       date: today(),
@@ -39,7 +39,7 @@ export function createEmptySchedule(): Schedule {
       { id: newId('col'), name: 'Track 1', color: '#0b57d0', type: 'track' },
       { id: newId('col'), name: 'Track 2', color: '#188038', type: 'track' },
     ],
-    rows: [{ id: newId('row'), start: '09:00', end: '10:00' }],
+    rows: [],
     items: [],
     speakers: [],
   }

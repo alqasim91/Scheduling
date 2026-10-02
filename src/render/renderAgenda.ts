@@ -3,6 +3,7 @@
  * same code drives the live preview iframe and (later) the "Save as HTML" export.
  */
 import type { Column, Item, Schedule, Speaker } from '../model/schema.ts'
+import { deriveSlots, type Slot } from '../model/slots.ts'
 import { TIME_PATTERN, toMinutes } from '../model/time.ts'
 import { agendaCss } from './agendaCss.ts'
 import { googleFontsUrl } from './fonts.ts'
@@ -84,8 +85,8 @@ function stagger(ctx: Context): string {
 
 interface Placed {
   item: Item
+  /** Index of the slot the item starts in. */
   row: number
-  lastRow: number
   firstCol: number
   lastCol: number
   start: string
@@ -93,37 +94,42 @@ interface Placed {
   spansAll: boolean
 }
 
-function placeItems(schedule: Schedule): Placed[] {
-  const rowIndex = new Map<string, number>()
-  schedule.rows.forEach((row, i) => {
-    if (!rowIndex.has(row.id)) rowIndex.set(row.id, i)
-  })
+/** The grid's slots with the items placed in them. */
+interface Layout {
+  slots: Slot[]
+  placed: Placed[]
+}
+
+/** Derive the slots from the items and place every item in the slot of its start. */
+function placeItems(schedule: Schedule): Layout {
   const colIndex = new Map<string, number>()
   schedule.columns.forEach((col, i) => {
     if (!colIndex.has(col.id)) colIndex.set(col.id, i)
   })
   const lanes = schedule.columns.length
 
+  const usable = schedule.items.filter(
+    (item) => item.columnIds.some((id) => colIndex.has(id)) && minutesOf(item.start) !== null && minutesOf(item.end) !== null,
+  )
+  const slots = deriveSlots(usable)
+  const slotIndex = new Map(slots.map((slot, i) => [slot.start, i]))
+
   const placed: Placed[] = []
-  for (const item of schedule.items) {
-    const row = rowIndex.get(item.rowId)
+  for (const item of usable) {
     const cols = item.columnIds.map((id) => colIndex.get(id)).filter((i): i is number => i !== undefined)
-    if (row === undefined || cols.length === 0) continue
     const firstCol = Math.min(...cols)
     const lastCol = Math.max(...cols)
-    const lastRow = Math.min(schedule.rows.length - 1, row + Math.max(1, item.rowSpan ?? 1) - 1)
     placed.push({
       item,
-      row,
-      lastRow,
+      row: slotIndex.get(item.start) as number,
       firstCol,
       lastCol,
-      start: item.start ?? (schedule.rows[row]?.start ?? ''),
-      end: item.end ?? (schedule.rows[lastRow]?.end ?? ''),
+      start: item.start,
+      end: item.end,
       spansAll: firstCol === 0 && lastCol === lanes - 1,
     })
   }
-  return placed
+  return { slots, placed }
 }
 
 function renderItem(schedule: Schedule, ctx: Context, p: Placed, gridRow: string): string {
@@ -156,20 +162,39 @@ function renderItem(schedule: Schedule, ctx: Context, p: Placed, gridRow: string
 
 /* ---------- sections ---------- */
 
-function renderHeader(schedule: Schedule, ctx: Context, placed: Placed[]): string {
+/** The clock range shown under the title: first start to last end. */
+interface Span {
+  first: string | undefined
+  latest: string | null
+}
+
+function latestOf(times: string[]): string | null {
+  return times
+    .filter((t) => minutesOf(t) !== null)
+    .reduce<string | null>((best, t) => (best === null || (minutesOf(t) ?? 0) > (minutesOf(best) ?? 0) ? t : best), null)
+}
+
+/** Grid mode: from the first slot to the latest item end. */
+function gridSpan(layout: Layout): Span {
+  return { first: layout.slots[0]?.start, latest: latestOf(layout.placed.map((p) => p.end)) }
+}
+
+/** Table mode: from the first row to the latest row end. */
+function tableSpan(schedule: Schedule): Span {
+  return { first: schedule.rows[0]?.start, latest: latestOf(schedule.rows.map((r) => r.end)) }
+}
+
+function renderHeader(schedule: Schedule, ctx: Context, span: Span): string {
   const { event, branding } = schedule
   const logoSrc = safeDataImage(branding.logo)
   const logo = logoSrc ? `<img class="logo" src="${escapeHtml(logoSrc)}" alt="">` : ''
 
-  const first = schedule.rows[0]
-  const latest = [...schedule.rows.map((r) => r.end), ...placed.map((p) => p.item.end ?? '')]
-    .filter((t) => minutesOf(t) !== null)
-    .reduce<string | null>((best, t) => (best === null || (minutesOf(t) ?? 0) > (minutesOf(best) ?? 0) ? t : best), null)
+  const { first, latest } = span
   let time = ''
-  if (first && minutesOf(first.start) !== null && latest !== null) {
+  if (first !== undefined && minutesOf(first) !== null && latest !== null) {
     const zone = timezoneShortName(event.date, event.timezone, ctx.locale)
     // Only the clock range uses the mono face; the zone name may be in any script.
-    time = `<span class="time"><span class="rng">${escapeHtml(fmt(ctx, first.start))} – ${escapeHtml(fmt(ctx, latest))}</span>${zone ? ` ${escapeHtml(zone)}` : ''}</span>`
+    time = `<span class="time"><span class="rng">${escapeHtml(fmt(ctx, first))} – ${escapeHtml(fmt(ctx, latest))}</span>${zone ? ` ${escapeHtml(zone)}` : ''}</span>`
   }
   const venue = event.venue ? `<span>${escapeHtml(event.venue)}</span>` : ''
   const status = event.status ? `<span>${escapeHtml(event.status)}</span>` : ''
@@ -194,37 +219,45 @@ function renderLegend(schedule: Schedule, labels: ResolvedLabels, placed: Placed
   return `<div class="legend">${chips.join('')}</div>`
 }
 
-function renderAgendaGrid(schedule: Schedule, ctx: Context, placed: Placed[]): string {
+function renderAgendaGrid(schedule: Schedule, ctx: Context, layout: Layout): string {
   const { labels } = ctx
-  const { rows, columns } = schedule
+  const { columns } = schedule
+  const { slots, placed } = layout
   const lanes = columns.length
 
-  // Lane headers go right before the first row holding an item that does not span every column.
+  // Lane headers go right before the first slot holding an item that does not span every column.
   const laneRow = placed.filter((p) => !p.spansAll).reduce((min, p) => Math.min(min, p.row), Infinity)
-
-  // Explicit grid rows: [lane head] time row [note] ... so every cell can be placed by number.
-  const rowLine: number[] = []
-  const noteLine = new Map<number, number>()
-  let laneLine = 0
-  let line = 1
-  rows.forEach((row, i) => {
-    if (i === laneRow) laneLine = line++
-    rowLine[i] = line++
-    if (row.note?.trim()) noteLine.set(i, line++)
-  })
-
-  const occupied = new Set<string>()
-  for (const p of placed) {
-    for (let r = p.row; r <= p.lastRow; r++) {
-      for (let c = p.firstCol; c <= p.lastCol; c++) occupied.add(`${r}:${c}`)
-    }
-  }
 
   const byRow = new Map<number, Placed[]>()
   for (const p of placed) byRow.set(p.row, [...(byRow.get(p.row) ?? []), p])
 
+  // Notes belong to items and follow their slot, in column order.
+  const notesOf = (i: number): string[] =>
+    [...(byRow.get(i) ?? [])]
+      .sort((a, b) => a.firstCol - b.firstCol)
+      .map((p) => p.item.note ?? '')
+      .filter((note) => note.trim() !== '')
+
+  // Explicit grid rows: [lane head] time row [notes] ... so every cell can be placed by number.
+  const rowLine: number[] = []
+  const noteLines = new Map<number, number[]>()
+  let laneLine = 0
+  let line = 1
+  slots.forEach((_slot, i) => {
+    if (i === laneRow) laneLine = line++
+    rowLine[i] = line++
+    const lines = notesOf(i).map(() => line++)
+    if (lines.length > 0) noteLines.set(i, lines)
+  })
+
+  // A cell is taken only by an item that starts in that slot; ghosts fill the free ones after it.
+  const occupied = new Set<string>()
+  for (const p of placed) {
+    for (let c = p.firstCol; c <= p.lastCol; c++) occupied.add(`${p.row}:${c}`)
+  }
+
   const out: string[] = []
-  rows.forEach((row, i) => {
+  slots.forEach((slot, i) => {
     const line = rowLine[i] as number
     if (i === laneRow) {
       const heads = columns
@@ -236,22 +269,21 @@ function renderAgendaGrid(schedule: Schedule, ctx: Context, placed: Placed[]): s
       out.push(`<div class="lane-head" aria-hidden="true" style="grid-row:${laneLine};grid-column:1 / -1">${heads}</div>`)
     }
     out.push(
-      `<div class="t" style="grid-row:${line};grid-column:1"><b>${escapeHtml(fmt(ctx, row.start))}</b>${escapeHtml(fmt(ctx, row.end))}</div>`,
+      `<div class="t" style="grid-row:${line};grid-column:1"><b>${escapeHtml(fmt(ctx, slot.start))}</b>${escapeHtml(fmt(ctx, slot.end))}</div>`,
     )
 
     for (const p of byRow.get(i) ?? []) {
-      const span = (rowLine[p.lastRow] as number) - line + 1
-      out.push(renderItem(schedule, ctx, p, span > 1 ? `${line} / span ${span}` : `${line}`))
+      out.push(renderItem(schedule, ctx, p, `${line}`))
 
-      // The item runs past its last row: mark the following rows it still occupies.
+      // The item runs past the end of its slot: mark the following slots it still occupies.
       const endMinutes = minutesOf(p.end)
-      const lastRowEnd = minutesOf(rows[p.lastRow]?.end)
-      if (endMinutes === null || lastRowEnd === null || endMinutes <= lastRowEnd) continue
+      const slotEnd = minutesOf(slot.end)
+      if (endMinutes === null || slotEnd === null || endMinutes <= slotEnd) continue
       const continuation =
         p.item.continuationLabel?.trim() || fillSessionFallback(labels.sessionFallback, columns[p.firstCol]?.name ?? '')
       const color = cssColor(columns[p.firstCol]?.color ?? '', FALLBACK_COLOR)
-      for (let r = p.lastRow + 1; r < rows.length; r++) {
-        const rowStart = minutesOf(rows[r]?.start)
+      for (let r = i + 1; r < slots.length; r++) {
+        const rowStart = minutesOf(slots[r]?.start)
         if (rowStart === null || rowStart >= endMinutes) continue
         let free = true
         for (let c = p.firstCol; c <= p.lastCol; c++) if (occupied.has(`${r}:${c}`)) free = false
@@ -262,10 +294,10 @@ function renderAgendaGrid(schedule: Schedule, ctx: Context, placed: Placed[]): s
       }
     }
 
-    const noteAt = noteLine.get(i)
-    if (noteAt !== undefined && row.note) {
-      out.push(`<p class="small" style="grid-row:${noteAt};grid-column:2 / ${lanes + 2}">${renderInlineMarkup(row.note)}</p>`)
-    }
+    const noteAt = noteLines.get(i) ?? []
+    notesOf(i).forEach((note, k) => {
+      out.push(`<p class="small" style="grid-row:${noteAt[k]};grid-column:2 / ${lanes + 2}">${renderInlineMarkup(note)}</p>`)
+    })
   })
 
   return `<div class="agenda" id="agenda">${out.join('\n')}</div>`
@@ -363,11 +395,12 @@ export function renderAgendaBody(schedule: Schedule): string {
   const table = schedule.mode === 'table'
   // Track-grid mode only uses the track columns; table columns share the array but are not lanes.
   const gridView: Schedule = table ? schedule : { ...schedule, columns: schedule.columns.filter((c) => c.type === 'track') }
-  const placed = table ? [] : placeItems(gridView)
+  const layout: Layout = table ? { slots: [], placed: [] } : placeItems(gridView)
+  const placed = layout.placed
   const note = schedule.event.notes.trim()
   const url = safeHttpUrl(schedule.event.url)
 
-  const parts = [renderHeader(schedule, ctx, placed)]
+  const parts = [renderHeader(schedule, ctx, table ? tableSpan(schedule) : gridSpan(layout))]
   if (note) parts.push(`<div class="parallel-note"><div>${renderInlineMarkup(schedule.event.notes)}</div></div>`)
   parts.push(
     table
@@ -378,7 +411,7 @@ export function renderAgendaBody(schedule: Schedule): string {
       : `<section aria-labelledby="ag" class="sec">
     <h2 id="ag">${escapeHtml(labels.agenda)}</h2>
     ${renderLegend(gridView, labels, placed)}
-    ${renderAgendaGrid(gridView, ctx, placed)}
+    ${renderAgendaGrid(gridView, ctx, layout)}
   </section>`,
   )
   if (schedule.speakers.length > 0) {

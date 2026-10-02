@@ -226,7 +226,7 @@ describe('mode switching leaves the other mode alone', () => {
     const withItems: Schedule = {
       ...tableDemo,
       columns: [...tableDemo.columns, { id: 't1', name: 'Lane', color: '#0b57d0', type: 'track' }],
-      items: [{ id: 'i', rowId: 'r1', columnIds: ['t1'], title: 'Hidden', variant: 'session' }],
+      items: [{ id: 'i', columnIds: ['t1'], start: '09:00', end: '09:30', title: 'Hidden', variant: 'session' }],
     }
     expect(renderAgendaBody(withItems)).not.toContain('Hidden')
     const grid = parse(renderAgendaBody({ ...withItems, mode: 'track-grid' }))

@@ -2,7 +2,7 @@ import type { Schedule } from '../../model/schema.ts'
 
 /** A generic Arabic-language event used to check right-to-left rendering. No real organisations. */
 export const rtlDemo: Schedule = {
-  version: 1,
+  version: 2,
   event: {
     title: 'ملتقى المطورين السنوي',
     titleHighlight: 'المطورين',
@@ -40,29 +40,23 @@ export const rtlDemo: Schedule = {
     { id: 'c1', name: 'المسار التقني', color: '#00695c', type: 'track' },
     { id: 'c2', name: 'مسار البيانات', color: '#1565c0', type: 'track' },
   ],
-  rows: [
-    { id: 'r1', start: '09:00', end: '09:30' },
-    { id: 'r2', start: '09:30', end: '10:30', note: 'الكلمة الافتتاحية في القاعة الكبرى.' },
-    { id: 'r3', start: '10:45', end: '11:30' },
-    { id: 'r4', start: '11:30', end: '12:00' },
-    { id: 'r5', start: '12:00', end: '12:30' },
-  ],
+  rows: [],
   items: [
-    { id: 'i1', rowId: 'r1', columnIds: ['c1', 'c2'], title: 'التسجيل والاستقبال', variant: 'break' },
-    { id: 'i2', rowId: 'r2', columnIds: ['c1', 'c2'], title: 'الكلمة الافتتاحية', variant: 'highlight' },
-    { id: 'i3', rowId: 'r3', columnIds: ['c1'], title: 'مقدمة في تصميم الأنظمة الموزعة', speaker: 'سارة أحمد', variant: 'session' },
+    { id: 'i1', start: '09:00', end: '09:30', columnIds: ['c1', 'c2'], title: 'التسجيل والاستقبال', variant: 'break' },
+    { id: 'i2', start: '09:30', end: '10:30', columnIds: ['c1', 'c2'], title: 'الكلمة الافتتاحية', note: 'الكلمة الافتتاحية في القاعة الكبرى.', variant: 'highlight' },
+    { id: 'i3', start: '10:45', end: '11:30', columnIds: ['c1'], title: 'مقدمة في تصميم الأنظمة الموزعة', speaker: 'سارة أحمد', variant: 'session' },
     {
       id: 'i4',
-      rowId: 'r3',
+      start: '10:45',
+      end: '12:00',
       columnIds: ['c2'],
       title: 'أساسيات تحليل البيانات',
       speaker: 'محمد علي',
-      end: '12:00',
       continuationLabel: 'جلسة تحليل البيانات',
       variant: 'session',
     },
-    { id: 'i5', rowId: 'r4', columnIds: ['c1'], title: 'ورشة عمل تطبيقية', speaker: 'سارة أحمد', variant: 'session' },
-    { id: 'i6', rowId: 'r5', columnIds: ['c1', 'c2'], title: 'استراحة وختام', variant: 'break' },
+    { id: 'i5', start: '11:30', end: '12:00', columnIds: ['c1'], title: 'ورشة عمل تطبيقية', speaker: 'سارة أحمد', variant: 'session' },
+    { id: 'i6', start: '12:00', end: '12:30', columnIds: ['c1', 'c2'], title: 'استراحة وختام', variant: 'break' },
   ],
   speakers: [
     { id: 's1', name: 'سارة أحمد', role: 'مهندسة برمجيات', color: '#00695c' },

@@ -41,14 +41,16 @@ describe('NOW_SCRIPT', () => {
     ])
   })
 
-  it('includes the start minute and the keynote while it runs', () => {
+  it('includes the start minute and the keynote while it runs, which ends when the first sessions start', () => {
     vi.setSystemTime(new Date('2026-10-02T11:00:00Z')) // 14:00
     run()
     expect(nowTitles()).toEqual(['Opening & Keynote'])
-    vi.setSystemTime(new Date('2026-10-02T11:20:00Z')) // 14:20
+    vi.setSystemTime(new Date('2026-10-02T11:19:00Z')) // 14:19
+    run()
+    expect(nowTitles()).toEqual(['Opening & Keynote'])
+    vi.setSystemTime(new Date('2026-10-02T11:20:00Z')) // 14:20: end is exclusive, and no two items share a track
     run()
     expect(nowTitles()).toEqual([
-      'Opening & Keynote',
       'Beyond the Prompt: Context and Harness Engineering for the Modern Developer',
       'Safeguarding Agents with Agents Sandbox: A hands-on lab',
     ])

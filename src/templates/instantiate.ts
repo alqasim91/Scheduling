@@ -16,7 +16,6 @@ export function remapIds(schedule: Schedule, makeId: (prefix: 'col' | 'row' | 'i
   }
   for (const item of copy.items) {
     item.id = makeId('item')
-    item.rowId = lookup(rows, item.rowId)
     item.columnIds = item.columnIds.map((id) => lookup(columns, id))
   }
   for (const speaker of copy.speakers) speaker.id = makeId('spk')

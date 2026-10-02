@@ -10,7 +10,7 @@ export const meetup: Template = {
   description: 'An evening meetup with one track: doors, a welcome, two talks, lightning talks and networking.',
   builtin: true,
   schedule: {
-    version: 1,
+    version: 2,
     event: {
       title: 'Community Meetup',
       titleHighlight: 'Meetup',
@@ -33,21 +33,14 @@ export const meetup: Template = {
     }),
     mode: 'track-grid',
     columns: [{ id: ROOM, name: 'Main track', color: '#00796b', type: 'track' }],
-    rows: [
-      { id: 'r1', start: '18:30', end: '19:00' },
-      { id: 'r2', start: '19:00', end: '19:10' },
-      { id: 'r3', start: '19:10', end: '19:50' },
-      { id: 'r4', start: '19:50', end: '20:30' },
-      { id: 'r5', start: '20:30', end: '21:00' },
-      { id: 'r6', start: '21:00', end: '22:00' },
-    ],
+    rows: [],
     items: [
-      item({ id: 'i1', rowId: 'r1', columnIds: [ROOM], title: 'Doors open, food and drinks', variant: 'break' }),
-      item({ id: 'i2', rowId: 'r2', columnIds: [ROOM], title: 'Welcome', speaker: 'Organiser', variant: 'highlight' }),
-      item({ id: 'i3', rowId: 'r3', columnIds: [ROOM], title: 'Talk title', speaker: 'Alex Example' }),
-      item({ id: 'i4', rowId: 'r4', columnIds: [ROOM], title: 'Talk title', speaker: 'Sam Sample' }),
-      item({ id: 'i5', rowId: 'r5', columnIds: [ROOM], title: 'Lightning talks' }),
-      item({ id: 'i6', rowId: 'r6', columnIds: [ROOM], title: 'Networking', variant: 'break' }),
+      item({ id: 'i1', start: '18:30', end: '19:00', columnIds: [ROOM], title: 'Doors open, food and drinks', variant: 'break' }),
+      item({ id: 'i2', start: '19:00', end: '19:10', columnIds: [ROOM], title: 'Welcome', speaker: 'Organiser', variant: 'highlight' }),
+      item({ id: 'i3', start: '19:10', end: '19:50', columnIds: [ROOM], title: 'Talk title', speaker: 'Alex Example' }),
+      item({ id: 'i4', start: '19:50', end: '20:30', columnIds: [ROOM], title: 'Talk title', speaker: 'Sam Sample' }),
+      item({ id: 'i5', start: '20:30', end: '21:00', columnIds: [ROOM], title: 'Lightning talks' }),
+      item({ id: 'i6', start: '21:00', end: '22:00', columnIds: [ROOM], title: 'Networking', variant: 'break' }),
     ],
     speakers: [
       { id: 's1', name: 'Alex Example', role: 'Job title, Company Name', color: '#00796b' },
